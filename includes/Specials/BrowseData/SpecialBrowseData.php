@@ -14,6 +14,8 @@ namespace SD\Specials\BrowseData;
 use IncludableSpecialPage;
 use MediaWiki\MediaWikiServices;
 use SD\AppliedFilter;
+use SD\Parameters\Filters;
+use SD\Parameters\Title;
 use SD\Utils;
 
 class SpecialBrowseData extends IncludableSpecialPage {
@@ -51,7 +53,7 @@ class SpecialBrowseData extends IncludableSpecialPage {
 		if ( !$category ) {
 			$category_title = wfMessage( 'browsedata' )->text();
 		} else {
-			$category_title = Utils::getDrilldownTitleForCategory( $category );
+			$category_title = Title::forCategory( $category )->value;
 			if ( $category_title == '' ) {
 				$category_title = wfMessage( 'browsedata' )->text() . html_entity_decode( wfMessage( 'colon-separator' )->text() ) . str_replace( '_', ' ', $category );
 			}
@@ -70,7 +72,7 @@ class SpecialBrowseData extends IncludableSpecialPage {
 
 		$subcategory = Utils::escapeString( $request->getVal( '_subcat' ) );
 
-		$filters = Utils::loadFiltersForCategory( $category );
+		$filters = Filters::forCategory( $category );
 
 		$filter_used = [];
 		foreach ( $filters as $filter ) {

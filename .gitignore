@@ -7,3 +7,4 @@
 /.eslintcache
 .phpunit.result.cache
 .tmp
+coverage
