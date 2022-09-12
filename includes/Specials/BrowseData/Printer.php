@@ -297,44 +297,48 @@ class Printer {
 	private function getCategoriesList( $categories ): string {
 		global $sdgShowCategoriesAsTabs;
 
-		$choose_category_text = wfMessage( 'sd_browsedata_choosecategory' )->text() . wfMessage( 'colon-separator' )->text();
-		if ( $sdgShowCategoriesAsTabs ) {
-			$cats_wrapper_class = "drilldown-categories-tabs-wrapper";
-			$cats_list_class = "drilldown-categories-tabs";
-		} else {
-			$cats_wrapper_class = "drilldown-categories-wrapper";
-			$cats_list_class = "drilldown-categories";
-		}
-
-		$categoriesHtml = [];
-		foreach ( $categories as $category ) {
+		$toCategoryViewModel = function ( $category ) {
 			$category_children = $this->repository->getCategoryChildren( $category, false, 5 );
-			$category_str = $category . " (" . count( array_unique( $category_children ) ) . ")";
-			$category_url = $this->makeBrowseURL( $category );
-			$isSelected = str_replace( '_', ' ', $this->query->category() ) == $category;
-			$categoriesHtml[] = $isSelected
-				? [ 'li', [ 'class' => 'category selected' ], $category_str ]
-				: [ 'li', [ 'class' => 'category' ],
-					[ 'a', [ 'href' => $category_url, 'title' => $choose_category_text ], $category_str ]
-				];
-		}
+			return [
+				'name' => $category . " (" . count( array_unique( $category_children ) ) . ")",
+				'isSelected' => str_replace( '_', ' ', $this->query->category() ) == $category,
+				'url' => $this->makeBrowseURL( $category )
+			];
+		};
 
-		$headerHtml = $sdgShowCategoriesAsTabs
+		$vm = [
+			'categoriesAsTabs' => $sdgShowCategoriesAsTabs,
+			'chooseCategoryText' => wfMessage( 'sd_browsedata_choosecategory' )->text() . wfMessage( 'colon-separator' )->text(),
+			'categories' => array_map( $toCategoryViewModel, $categories )
+		];
+
+		[ $vm['id'], $vm['listClass'] ] = $sdgShowCategoriesAsTabs
+			? [ "drilldown-categories-tabs-wrapper", "drilldown-categories-tabs" ]
+			: [ "drilldown-categories-wrapper", "drilldown-categories" ];
+
+		$categoriesHtml = array_map( fn( $category ) =>
+			$category['isSelected']
+				? [ 'li', [ 'class' => 'category selected' ], $category['name'] ]
+				: [ 'li', [ 'class' => 'category' ],
+					[ 'a', [ 'href' => $category['url'], 'title' => $vm['chooseCategoryText'] ], $category['name'] ]
+				  ],
+			$vm['categories']
+		);
+
+		return Utils::toHtml( [ 'div', [ 'id' => $vm['id'] ],
+			$vm['categoriesAsTabs']
 			? [
-				[ 'p', [ 'id' => 'categories-header' ], $choose_category_text ],
-				[ 'ul', [ 'id' => $cats_list_class ], $categoriesHtml ]
+				[ 'p', [ 'id' => 'categories-header' ], $vm['chooseCategoryText'] ],
+				[ 'ul', [ 'id' => $vm['listClass'] ], $categoriesHtml ]
 			  ]
 			: [
-				[ 'ul', [ 'id' => $cats_list_class ],
+				[ 'ul', [ 'id' => $vm['listClass'] ],
 					array_merge(
-						[ [ 'li', [ 'id' => 'categories-header' ], $choose_category_text ] ],
+						[ [ 'li', [ 'id' => 'categories-header' ], $vm['chooseCategoryText'] ] ],
 						$categoriesHtml
 					) ],
-			  ];
-
-		return Utils::toHtml(
-			[ 'div', [ 'id' => $cats_wrapper_class ], $headerHtml ]
-		);
+			  ]
+		] );
 	}
 
 	/**
