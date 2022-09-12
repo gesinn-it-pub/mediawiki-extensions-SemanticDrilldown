@@ -4,6 +4,8 @@ namespace SD;
 
 use ALItem;
 use ALRow;
+use Exception;
+use Html;
 use MagicWord;
 use MagicWordFactory;
 use MediaWiki\MediaWikiServices;
@@ -328,5 +330,49 @@ class Utils {
 	 */
 	public static function escapeString( $val ) {
 		return htmlspecialchars( $val, ENT_QUOTES, 'UTF-8' );
+	}
+
+	/**
+	 * Convert an HTML description to an HTML string
+	 *
+	 * Examples for $elements:
+	 * * [ 'div', [ 'id' => '5', 'style' => 'color:red' ], 'some text' ]
+	 * * [ ['p', 'first parapgraph'], ['p', 'second parapgraph'] ]
+	 * * [ 'ul', [ [ 'li', 'one' ], [ 'li', 'two' ] ] ]
+	 * * [ 'span' ]
+	 * * []
+	 * * null
+	 *
+	 * @param array $description
+	 * @return string
+	 * @throws Exception
+	 */
+	public static function toHtml( array $description ): string {
+		if ( $description === null ) {
+			return '';
+		}
+
+		if ( !is_array( $description ) ) {
+			throw new Exception( '$elements must be an array' );
+		}
+
+		if ( count( $description ) === 0 ) {
+			return '';
+		}
+
+		if ( is_array( $description[0] ) ) {
+			return implode( '', array_map( fn( $e ) => self::toHtml( $e ), $description ) );
+		}
+
+		$name = $description[0];
+		[ $attributes, $contents ] =
+			count( $description ) === 2 ? [ [], $description[1] ] : [ $description[1], $description[2] ];
+
+		$raw = count( $description ) === 4 ? $description[3] : false;
+
+		return is_array( $contents )
+			? Html::rawElement( $name, $attributes, self::toHtml( $contents ) )
+			: ( $raw ? Html::rawElement( $name, $attributes, $contents )
+					 : Html::element( $name,  $attributes, $contents ) );
 	}
 }

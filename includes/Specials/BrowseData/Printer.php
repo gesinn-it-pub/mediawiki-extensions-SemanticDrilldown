@@ -40,7 +40,7 @@ class Printer {
 		$this->query = $query;
 	}
 
-	public function getPageHeader() {
+	public function getPageHeader(): string {
 		global $wgScriptPath;
 		global $sdgFiltersSmallestFontSize, $sdgFiltersLargestFontSize;
 		$sdSkinsPath = $wgScriptPath . '/extensions/SemanticDrilldown/skins';
@@ -52,36 +52,29 @@ class Printer {
 		}
 		$subcategory_text = wfMessage( 'sd_browsedata_subcategory' )->text();
 
-		$header = "";
-
-		// Add intro template
-		$headerPage = $this->parameters->header();
-		if ( $headerPage !== null ) {
-			$title = Title::newFromText( $headerPage );
-			$page = WikiPage::factory( $title );
-			if ( $page->exists() ) {
-				$content = $page->getContent();
-				$pageContent = $content->serialize();
-				$header .= $this->output->parseInlineAsInterface( $pageContent );
-			}
-		}
-
-		// wrap output in Bootstrap panel
-		$header .= '<div class="panel panel-default"><div class="panel-heading">&nbsp;</div><div class="panel-body">';
+		$header = '';
 
 		if ( !$this->showSingleCat() ) {
-			$header .= $this->printCategoriesList( $categories );
+			$header .= $this->getCategoriesList( $categories );
 		}
+
 		// if there are no subcategories or filters for this
 		// category, escape now that we've (possibly) printed the
 		// categories list
-		if ( ( count( $this->query->nextLevelSubcategories() ) == 0 ) &&
-			( count( $this->query->appliedFilters() ) == 0 ) &&
-			( count( $this->query->remainingFilters() ) == 0 )
+		if ( empty( $this->query->nextLevelSubcategories() ) &&
+			 empty( $this->query->appliedFilters() ) &&
+			 empty( $this->query->remainingFilters() )
 		) {
-			return $header;
+			return Utils::toHtml( [
+				[ 'div', $this->getIntroTemplate() ],
+				[ 'div', [ 'class' => 'panel panel-default' ], [
+					[ 'div', [ 'class' => 'panel-heading' ], '&nbsp;', true ],
+					[ 'div', [ 'class' => 'panel-body' ], $header, true ]
+				] ]
+			] );
 		}
-		$header .= '				<div id="drilldown-header">' . "\n";
+
+		$header .= '<div id="drilldown-header">';
 		if ( count( $this->query->appliedFilters() ) > 0 || $this->query->subcategory() ) {
 			$category_url = $this->makeBrowseURL( $this->query->category() );
 			$header .= '<a href="' . $category_url . '" title="' . wfMessage( 'sd_browsedata_resetfilters' )->text() . '">' . str_replace( '_', ' ', $this->query->category() ) . '</a>';
@@ -92,7 +85,8 @@ class Printer {
 			$header .= "$subcategory_text: ";
 			$subcat_string = str_replace( '_', ' ', $this->query->subcategory() );
 			$remove_filter_url = $this->makeBrowseURL( $this->query->category(), $this->query->appliedFilters() );
-			$header .= "\n" . '				<span class="drilldown-header-value">' . $subcat_string . '</span> <a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removesubcategoryfilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a> ';
+			$header .= '<span class="drilldown-header-value">' . $subcat_string . '</span>' .
+				'<a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removesubcategoryfilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a> ';
 		}
 		foreach ( $this->query->appliedFilters() as $i => $af ) {
 			$header .= ( !$this->query->subcategory() && $i == 0 ) ? " > " : "\n					<span class=\"drilldown-header-value\">&</span> ";
@@ -210,8 +204,14 @@ class Printer {
 				}
 			}
 		}
-		$header .= "				</div> <!-- drilldown-filters -->\n";
-		return $header;
+
+		return Utils::toHtml( [
+			[ 'div', $this->getIntroTemplate() ],
+			[ 'div', [ 'class' => 'panel panel-default' ], [
+				[ 'div', [ 'class' => 'panel-heading' ], '&nbsp;', true ],
+				[ 'div', [ 'class' => 'panel-body' ], $header, true ]
+			] ]
+		] );
 	}
 
 	/**
@@ -294,7 +294,7 @@ class Printer {
 		return $url;
 	}
 
-	private function printCategoriesList( $categories ) {
+	private function getCategoriesList( $categories ): string {
 		global $sdgShowCategoriesAsTabs;
 
 		$choose_category_text = wfMessage( 'sd_browsedata_choosecategory' )->text() . wfMessage( 'colon-separator' )->text();
@@ -305,44 +305,36 @@ class Printer {
 			$cats_wrapper_class = "drilldown-categories-wrapper";
 			$cats_list_class = "drilldown-categories";
 		}
-		$text = <<<END
 
-				<div id="$cats_wrapper_class">
-
-END;
-		if ( $sdgShowCategoriesAsTabs ) {
-			$text .= <<<END
-					<p id="categories-header">$choose_category_text</p>
-					<ul id="$cats_list_class">
-
-END;
-		} else {
-			$text .= <<<END
-					<ul id="$cats_list_class">
-					<li id="categories-header">$choose_category_text</li>
-
-END;
-		}
-		foreach ( $categories as $i => $category ) {
+		$categoriesHtml = [];
+		foreach ( $categories as $category ) {
 			$category_children = $this->repository->getCategoryChildren( $category, false, 5 );
 			$category_str = $category . " (" . count( array_unique( $category_children ) ) . ")";
-			if ( str_replace( '_', ' ', $this->query->category() ) == $category ) {
-				$text .= '						<li class="category selected">';
-				$text .= $category_str;
-			} else {
-				$text .= '						<li class="category">';
-				$category_url = $this->makeBrowseURL( $category );
-				$text .= "<a href=\"$category_url\" title=\"$choose_category_text\">$category_str</a>";
-			}
-			$text .= "</li>\n";
+			$category_url = $this->makeBrowseURL( $category );
+			$isSelected = str_replace( '_', ' ', $this->query->category() ) == $category;
+			$categoriesHtml[] = $isSelected
+				? [ 'li', [ 'class' => 'category selected' ], $category_str ]
+				: [ 'li', [ 'class' => 'category' ],
+					[ 'a', [ 'href' => $category_url, 'title' => $choose_category_text ], $category_str ]
+				];
 		}
-		$text .= <<<END
-					</li>
-				</ul>
-			</div>
 
-END;
-		return $text;
+		$headerHtml = $sdgShowCategoriesAsTabs
+			? [
+				[ 'p', [ 'id' => 'categories-header' ], $choose_category_text ],
+				[ 'ul', [ 'id' => $cats_list_class ], $categoriesHtml ]
+			  ]
+			: [
+				[ 'ul', [ 'id' => $cats_list_class ],
+					array_merge(
+						[ [ 'li', [ 'id' => 'categories-header' ], $choose_category_text ] ],
+						$categoriesHtml
+					) ],
+			  ];
+
+		return Utils::toHtml(
+			[ 'div', [ 'id' => $cats_wrapper_class ], $headerHtml ]
+		);
 	}
 
 	/**
@@ -931,5 +923,19 @@ END;
 
 	private function showSingleCat() {
 		return $this->request->getCheck( '_single' );
+	}
+
+	private function getIntroTemplate() {
+		$headerPage = $this->parameters->header();
+		if ( $headerPage !== null ) {
+			$title = Title::newFromText( $headerPage );
+			$page = WikiPage::factory( $title );
+			if ( $page->exists() ) {
+				$content = $page->getContent();
+				$pageContent = $content->serialize();
+				return $this->output->parseInlineAsInterface( $pageContent );
+			}
+		}
+		return '';
 	}
 }
