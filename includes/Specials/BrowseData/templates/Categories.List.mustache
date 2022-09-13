@@ -1,0 +1,8 @@
+{{#categories}}
+    {{#isSelected}}
+        <li class="category">{{name}}</li>
+    {{/isSelected}}
+    {{^isSelected}}
+        <li class="category selected"><a href="{{url}}" title="{{chooseCategoryText}}">{{name}}</a></li>
+    {{/isSelected}}
+{{/categories}}

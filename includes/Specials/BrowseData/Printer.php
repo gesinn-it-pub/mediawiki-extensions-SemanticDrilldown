@@ -15,6 +15,7 @@ use SD\PossibleFilterValues;
 use SD\Repository;
 use SD\Utils;
 use SpecialPage;
+use TemplateParser;
 use Title;
 use WebRequest;
 use WikiPage;
@@ -28,6 +29,8 @@ class Printer {
 	private Parameters $parameters;
 	private DrilldownQuery $query;
 
+	private TemplateParser $templateParser;
+
 	public function __construct(
 		Repository $repository, PageProps $pageProps,
 		OutputPage $output, WebRequest $request, Parameters $parameters, DrilldownQuery $query
@@ -38,6 +41,8 @@ class Printer {
 		$this->request = $request;
 		$this->parameters = $parameters;
 		$this->query = $query;
+
+		$this->templateParser = new TemplateParser( __DIR__ . '/templates');
 	}
 
 	public function getPageHeader(): string {
@@ -65,13 +70,10 @@ class Printer {
 			 empty( $this->query->appliedFilters() ) &&
 			 empty( $this->query->remainingFilters() )
 		) {
-			return Utils::toHtml( [
-				[ 'div', $this->getIntroTemplate() ],
-				[ 'div', [ 'class' => 'panel panel-default' ], [
-					[ 'div', [ 'class' => 'panel-heading' ], '&nbsp;', true ],
-					[ 'div', [ 'class' => 'panel-body' ], $header, true ]
-				] ]
-			] );
+			return $this->processTemplate('Page', [
+				'introTemplate' => $this->getIntroTemplate(),
+				'header' => $header,
+			]);
 		}
 
 		$header .= '<div id="drilldown-header">';
@@ -205,13 +207,10 @@ class Printer {
 			}
 		}
 
-		return Utils::toHtml( [
-			[ 'div', $this->getIntroTemplate() ],
-			[ 'div', [ 'class' => 'panel panel-default' ], [
-				[ 'div', [ 'class' => 'panel-heading' ], '&nbsp;', true ],
-				[ 'div', [ 'class' => 'panel-body' ], $header, true ]
-			] ]
-		] );
+		return $this->processTemplate('Page', [
+			'introTemplate' => $this->getIntroTemplate(),
+			'header' => $header,
+		]);
 	}
 
 	/**
@@ -295,8 +294,6 @@ class Printer {
 	}
 
 	private function getCategoriesList( $categories ): string {
-		global $sdgShowCategoriesAsTabs;
-
 		$toCategoryViewModel = function ( $category ) {
 			$category_children = $this->repository->getCategoryChildren( $category, false, 5 );
 			return [
@@ -306,39 +303,14 @@ class Printer {
 			];
 		};
 
+		global $sdgShowCategoriesAsTabs;
 		$vm = [
 			'categoriesAsTabs' => $sdgShowCategoriesAsTabs,
 			'chooseCategoryText' => wfMessage( 'sd_browsedata_choosecategory' )->text() . wfMessage( 'colon-separator' )->text(),
 			'categories' => array_map( $toCategoryViewModel, $categories )
 		];
 
-		[ $vm['id'], $vm['listClass'] ] = $sdgShowCategoriesAsTabs
-			? [ "drilldown-categories-tabs-wrapper", "drilldown-categories-tabs" ]
-			: [ "drilldown-categories-wrapper", "drilldown-categories" ];
-
-		$categoriesHtml = array_map( fn( $category ) =>
-			$category['isSelected']
-				? [ 'li', [ 'class' => 'category selected' ], $category['name'] ]
-				: [ 'li', [ 'class' => 'category' ],
-					[ 'a', [ 'href' => $category['url'], 'title' => $vm['chooseCategoryText'] ], $category['name'] ]
-				  ],
-			$vm['categories']
-		);
-
-		return Utils::toHtml( [ 'div', [ 'id' => $vm['id'] ],
-			$vm['categoriesAsTabs']
-			? [
-				[ 'p', [ 'id' => 'categories-header' ], $vm['chooseCategoryText'] ],
-				[ 'ul', [ 'id' => $vm['listClass'] ], $categoriesHtml ]
-			  ]
-			: [
-				[ 'ul', [ 'id' => $vm['listClass'] ],
-					array_merge(
-						[ [ 'li', [ 'id' => 'categories-header' ], $vm['chooseCategoryText'] ] ],
-						$categoriesHtml
-					) ],
-			  ]
-		] );
+		return $this->processTemplate( 'Categories', $vm);
 	}
 
 	/**
@@ -941,5 +913,9 @@ END;
 			}
 		}
 		return '';
+	}
+
+	private function processTemplate( $template, $args ) {
+		return $this->templateParser->processTemplate( $template, $args );
 	}
 }
