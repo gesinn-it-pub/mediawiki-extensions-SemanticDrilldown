@@ -46,22 +46,16 @@ class Printer {
 	}
 
 	public function getPageHeader(): string {
-		global $wgScriptPath;
-		global $sdgFiltersSmallestFontSize, $sdgFiltersLargestFontSize;
-		$sdSkinsPath = $wgScriptPath . '/extensions/SemanticDrilldown/skins';
-
 		$categories = Utils::getCategoriesForBrowsing();
 		// if there are no categories, escape quickly
 		if ( count( $categories ) == 0 ) {
 			return "";
 		}
-		$subcategory_text = wfMessage( 'sd_browsedata_subcategory' )->text();
 
-		$header = '';
-
-		if ( !$this->showSingleCat() ) {
-			$header .= $this->getCategoriesList( $categories );
-		}
+		$vm = [
+			'introTemplate' => $this->getIntroTemplate(),
+			'categories' => $this->showSingleCat() ? null : $this->getCategories( $categories ),
+		];
 
 		// if there are no subcategories or filters for this
 		// category, escape now that we've (possibly) printed the
@@ -70,28 +64,53 @@ class Printer {
 			 empty( $this->query->appliedFilters() ) &&
 			 empty( $this->query->remainingFilters() )
 		) {
-			return $this->processTemplate('Page', [
-				'introTemplate' => $this->getIntroTemplate(),
-				'header' => $header,
-			]);
+			return $this->processTemplate('Page', $vm);
 		}
 
-		$header .= '<div id="drilldown-header">';
 		if ( count( $this->query->appliedFilters() ) > 0 || $this->query->subcategory() ) {
-			$category_url = $this->makeBrowseURL( $this->query->category() );
-			$header .= '<a href="' . $category_url . '" title="' . wfMessage( 'sd_browsedata_resetfilters' )->text() . '">' . str_replace( '_', ' ', $this->query->category() ) . '</a>';
+			$vm['appliedFilters'] = $this->getAppliedFilters();
 		}
+
+		$vm['applicableFilters'] = $this->getApplicableFilters();
+
+		return $this->processTemplate('Page', $vm);
+	}
+
+	private function getCategories( $categories ): array {
+		$toCategoryViewModel = function ( $category ) {
+			$category_children = $this->repository->getCategoryChildren( $category, false, 5 );
+			return [
+				'name' => $category . " (" . count( array_unique( $category_children ) ) . ")",
+				'isSelected' => str_replace( '_', ' ', $this->query->category() ) == $category,
+				'url' => $this->makeBrowseURL( $category )
+			];
+		};
+
+		global $sdgShowCategoriesAsTabs;
+		return [
+			'categoriesAsTabs' => $sdgShowCategoriesAsTabs,
+			'categories' => array_map( $toCategoryViewModel, $categories )
+		];
+	}
+
+	private function getAppliedFilters() : array {
+		global $wgScriptPath;
+		$sdSkinsPath = $wgScriptPath . '/extensions/SemanticDrilldown/skins';
+
+		$remainingHtml = '';
+		$subcategory_text = wfMessage( 'sd_browsedata_subcategory' )->text();
 
 		if ( $this->query->subcategory() ) {
-			$header .= " > ";
-			$header .= "$subcategory_text: ";
+			$remainingHtml .= " > ";
+			$remainingHtml .= "$subcategory_text: ";
 			$subcat_string = str_replace( '_', ' ', $this->query->subcategory() );
 			$remove_filter_url = $this->makeBrowseURL( $this->query->category(), $this->query->appliedFilters() );
-			$header .= '<span class="drilldown-header-value">' . $subcat_string . '</span>' .
+			$remainingHtml .= '<span class="drilldown-header-value">' . $subcat_string . '</span>' .
 				'<a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removesubcategoryfilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a> ';
 		}
+
 		foreach ( $this->query->appliedFilters() as $i => $af ) {
-			$header .= ( !$this->query->subcategory() && $i == 0 ) ? " > " : "\n					<span class=\"drilldown-header-value\">&</span> ";
+			$remainingHtml .= ( !$this->query->subcategory() && $i == 0 ) ? " > " : "\n					<span class=\"drilldown-header-value\">&</span> ";
 			$filter_label = $af->filter->name();
 			// add an "x" to remove this filter, if it has more
 			// than one value
@@ -100,46 +119,57 @@ class Printer {
 				array_splice( $temp_filters_array, $i, 1 );
 				$remove_filter_url = $this->makeBrowseURL( $this->query->category(), $temp_filters_array, $this->query->subcategory() );
 				array_splice( $temp_filters_array, $i, 0 );
-				$header .= $filter_label . ' <a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a> : ';
+				$remainingHtml .= $filter_label . ' <a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a> : ';
 			} else {
-				$header .= "$filter_label: ";
+				$remainingHtml .= "$filter_label: ";
 			}
 			foreach ( $af->values as $j => $fv ) {
 				if ( $j > 0 ) {
-					$header .= ' <span class="drilldown-or">' . wfMessage( 'sd_browsedata_or' )->text() . '</span> ';
+					$remainingHtml .= ' <span class="drilldown-or">' . wfMessage( 'sd_browsedata_or' )->text() . '</span> ';
 				}
 				$filter_text = Utils::escapeString( $this->getNiceAppliedFilterValue( $af->filter->propertyType(), $fv->text ) );
 				$temp_filters_array = $this->query->appliedFilters();
 				$removed_values = array_splice( $temp_filters_array[$i]->values, $j, 1 );
 				$remove_filter_url = $this->makeBrowseURL( $this->query->category(), $temp_filters_array, $this->query->subcategory() );
 				array_splice( $temp_filters_array[$i]->values, $j, 0, $removed_values );
-				$header .= '				<span class="drilldown-header-value">' . $filter_text . '</span> <a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a>';
+				$remainingHtml .= '				<span class="drilldown-header-value">' . $filter_text . '</span> <a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a>';
 			}
 
 			if ( $af->search_terms != null ) {
 				foreach ( $af->search_terms as $j => $search_term ) {
 					if ( $j > 0 ) {
-						$header .= ' <span class="drilldown-or">' . wfMessage( 'sd_browsedata_or' )->text() . '</span> ';
+						$remainingHtml .= ' <span class="drilldown-or">' . wfMessage( 'sd_browsedata_or' )->text() . '</span> ';
 					}
 					$filter_text = Utils::escapeString( $this->getNiceAppliedFilterValue( $af->filter->propertyType(), $search_term ) );
 					$temp_filters_array = $this->query->appliedFilters();
 					$removed_values = array_splice( $temp_filters_array[$i]->search_terms, $j, 1 );
 					$remove_filter_url = $this->makeBrowseURL( $this->query->category(), $temp_filters_array, $this->query->subcategory() );
 					array_splice( $temp_filters_array[$i]->search_terms, $j, 0, $removed_values );
-					$header .= "\n\t" . '<span class="drilldown-header-value">~ \'' . $filter_text . '\'</span> <a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /> </a>';
+					$remainingHtml .= "\n\t" . '<span class="drilldown-header-value">~ \'' . $filter_text . '\'</span> <a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /> </a>';
 				}
 			} elseif ( $af->lower_date != null || $af->upper_date != null ) {
-				$header .= "\n\t<span class=\"drilldown-header-value\">" . $af->lower_date_string . " - " . $af->upper_date_string . "</span>";
+				$remainingHtml .= "\n\t<span class=\"drilldown-header-value\">" . $af->lower_date_string . " - " . $af->upper_date_string . "</span>";
 			}
 		}
-		$header .= "</div>\n";
+
+		return [
+			'category' => str_replace( '_', ' ', $this->query->category() ),
+			'categoryUrl' => $this->makeBrowseURL( $this->query->category() ),
+			'remainingHtml' => $remainingHtml,
+		];
+	}
+
+	private function getApplicableFilters() {
+		global $sdgFiltersSmallestFontSize, $sdgFiltersLargestFontSize;
+
+		$remainingHtml = '';
 		$drilldown_description = wfMessage( 'sd_browsedata_docu' )->text();
-		$header .= "				<p>$drilldown_description</p>\n";
+		$remainingHtml .= "<p>$drilldown_description</p>\n";
 		// display the list of subcategories on one line, and below
 		// it every filter, each on its own line; each line will
 		// contain the possible values, and, in parentheses, the
 		// number of pages that match that value
-		$header .= "				<div class=\"drilldown-filters\">\n";
+		$remainingHtml .= "<div class=\"drilldown-filters\">\n";
 		$cur_url = $this->makeBrowseURL( $this->query->category(), $this->query->appliedFilters(), $this->query->subcategory() );
 		$cur_url .= ( strpos( $cur_url, '?' ) ) ? '&' : '?';
 		$this->repository->createTempTable( $this->query->category(), $this->query->subcategory(), $this->query->allSubcategories(), $this->query->appliedFilters() );
@@ -180,37 +210,37 @@ class Printer {
 						} else {
 							$font_size = ( $sdgFiltersSmallestFontSize + $sdgFiltersLargestFontSize ) / 2;
 						}
-						$results_line .= "\n					" . '<a href="' . $filter_url . '" title="' . wfMessage( 'sd_browsedata_filterbysubcategory' )->text() . '" style="font-size: ' . $font_size . 'px">' . $filter_text . '</a>';
+						$results_line .= '<a href="' . $filter_url . '" title="' . wfMessage( 'sd_browsedata_filterbysubcategory' )->text() . '" style="font-size: ' . $font_size . 'px">' . $filter_text . '</a>';
 					} else {
-						$results_line .= "\n					" . '<a href="' . $filter_url . '" title="' . wfMessage( 'sd_browsedata_filterbysubcategory' )->text() . '">' . $filter_text . '</a>';
+						$results_line .= '<a href="' . $filter_url . '" title="' . wfMessage( 'sd_browsedata_filterbysubcategory' )->text() . '">' . $filter_text . '</a>';
 					}
 				}
 			}
 			if ( $results_line != "" ) {
-				$header .= "					<p><strong>$subcategory_text:</strong> $results_line</p>\n";
+				$subcategory_text = wfMessage( 'sd_browsedata_subcategory' )->text();
+				$remainingHtml .= "					<p><strong>$subcategory_text:</strong> $results_line</p>\n";
 			}
 		}
 		foreach ( $this->query->filters() as $f ) {
 			foreach ( $this->query->appliedFilters() as $af ) {
 				if ( $af->filter->name() == $f->name() ) {
 					if ( $f->propertyType() == 'date' || $f->propertyType() == 'number' ) {
-						$header .= $this->printUnappliedFilterLine( $f );
+						$remainingHtml .= $this->printUnappliedFilterLine( $f );
 					} else {
-						$header .= $this->printAppliedFilterLine( $af );
+						$remainingHtml .= $this->printAppliedFilterLine( $af );
 					}
 				}
 			}
 			foreach ( $this->query->remainingFilters() as $rf ) {
 				if ( $rf->name() == $f->name() ) {
-					$header .= $this->printUnappliedFilterLine( $rf );
+					$remainingHtml .= $this->printUnappliedFilterLine( $rf );
 				}
 			}
 		}
 
-		return $this->processTemplate('Page', [
-			'introTemplate' => $this->getIntroTemplate(),
-			'header' => $header,
-		]);
+		return [
+			'remainingHtml' => $remainingHtml
+		];
 	}
 
 	/**
@@ -291,26 +321,6 @@ class Printer {
 			}
 		}
 		return $url;
-	}
-
-	private function getCategoriesList( $categories ): string {
-		$toCategoryViewModel = function ( $category ) {
-			$category_children = $this->repository->getCategoryChildren( $category, false, 5 );
-			return [
-				'name' => $category . " (" . count( array_unique( $category_children ) ) . ")",
-				'isSelected' => str_replace( '_', ' ', $this->query->category() ) == $category,
-				'url' => $this->makeBrowseURL( $category )
-			];
-		};
-
-		global $sdgShowCategoriesAsTabs;
-		$vm = [
-			'categoriesAsTabs' => $sdgShowCategoriesAsTabs,
-			'chooseCategoryText' => wfMessage( 'sd_browsedata_choosecategory' )->text() . wfMessage( 'colon-separator' )->text(),
-			'categories' => array_map( $toCategoryViewModel, $categories )
-		];
-
-		return $this->processTemplate( 'Categories', $vm);
 	}
 
 	/**
@@ -915,7 +925,31 @@ END;
 		return '';
 	}
 
-	private function processTemplate( $template, $args ) {
-		return $this->templateParser->processTemplate( $template, $args );
+	private function processTemplate( $template, $vm ) {
+		$messages = [
+			'sd_browsedata_subcategory',
+			'sd_browsedata_resetfilters',
+			'sd_browsedata_removesubcategoryfilter',
+			'sd_browsedata_removefilter',
+			'sd_browsedata_or',
+			'sd_browsedata_docu',
+			'sd_browsedata_filterbysubcategory',
+			'sd_browsedata_choosecategory',
+			'colon-separator',
+			'sd_browsedata_addanothervalue',
+			'sd_browsedata_other',
+			'sd_browsedata_none',
+			'sd_browsedata_filterbyvalue',
+			'sd_browsedata_search',
+			'sd_browsedata_daterangestart',
+			'sd_browsedata_daterangeend',
+			'searchresultshead',
+			'sd_browsedata_novalues',
+		];
+		foreach ($messages as $message)
+			$msg[ "msg_$message" ] = wfMessage( $message )->text();
+
+		return $this->templateParser->processTemplate( $template, $vm + $msg);
 	}
+
 }
