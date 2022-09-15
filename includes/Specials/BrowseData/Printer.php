@@ -42,7 +42,7 @@ class Printer {
 		$this->parameters = $parameters;
 		$this->query = $query;
 
-		$this->templateParser = new TemplateParser( __DIR__ . '/templates');
+		$this->templateParser = new TemplateParser( __DIR__ . '/templates' );
 	}
 
 	public function getPageHeader(): string {
@@ -64,7 +64,7 @@ class Printer {
 			 empty( $this->query->appliedFilters() ) &&
 			 empty( $this->query->remainingFilters() )
 		) {
-			return $this->processTemplate('Page', $vm);
+			return $this->processTemplate( 'Page', $vm );
 		}
 
 		if ( count( $this->query->appliedFilters() ) > 0 || $this->query->subcategory() ) {
@@ -73,7 +73,7 @@ class Printer {
 
 		$vm['applicableFilters'] = $this->getApplicableFilters();
 
-		return $this->processTemplate('Page', $vm);
+		return $this->processTemplate( 'Page', $vm );
 	}
 
 	private function getCategories( $categories ): array {
@@ -486,7 +486,6 @@ END;
 		return $results_line;
 	}
 
-
 	private function getNumberRanges( $filter_name, PossibleFilterValues $possibleValues ): string {
 		// We generate $cur_url here, instead of passing it in, because
 		// if there's a previous value for this filter it may be
@@ -752,16 +751,17 @@ END;
 			'searchresultshead',
 			'sd_browsedata_novalues',
 		];
-		foreach ($messages as $message)
+		foreach ( $messages as $message ) {
 			$msg[ "msg_$message" ] = wfMessage( $message )->text();
+		}
 
-		return $this->templateParser->processTemplate( $template, $vm + $msg);
+		return $this->templateParser->processTemplate( $template, $vm + $msg );
 	}
 
 	/**
 	 * Used to set URL for additional pages of results.
 	 */
-	public function linkParameters() : array {
+	public function linkParameters(): array {
 		$params = [];
 		if ( $this->showSingleCat() ) {
 			$params['_single'] = null;

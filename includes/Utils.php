@@ -4,8 +4,6 @@ namespace SD;
 
 use ALItem;
 use ALRow;
-use Exception;
-use Html;
 use MagicWord;
 use MagicWordFactory;
 use MediaWiki\MediaWikiServices;
