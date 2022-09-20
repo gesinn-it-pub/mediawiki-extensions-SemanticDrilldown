@@ -330,4 +330,12 @@ class Utils {
 		return htmlspecialchars( $val, ENT_QUOTES, 'UTF-8' );
 	}
 
+	public static function markTime( $out, $text ) {
+		static $previous;
+		$now = microtime( true );
+		$diff = $previous ? ($now - $previous) : null;
+		$out->addHtml( "\n<!-- time-marker: $text -- $diff -->\n" );
+		$previous = $now;
+	}
+
 }

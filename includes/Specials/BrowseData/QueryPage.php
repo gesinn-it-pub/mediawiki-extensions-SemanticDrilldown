@@ -7,6 +7,7 @@ use IDatabase;
 use OutputPage;
 use SD\Parameters\Parameters;
 use SD\Sql\SqlProvider;
+use SD\Utils;
 use Skin;
 use SMWOutputs;
 use Title;
@@ -42,16 +43,27 @@ class QueryPage extends \QueryPage {
 	}
 
 	protected function getPageHeader(): string {
-		return $this->printer->getPageHeader();
+		Utils::markTime( $this->getOutput(), '> getPageHeader' );
+		$result = $this->printer->getPageHeader();
+		Utils::markTime( $this->getOutput(), '< getPageHeader' );
+		return $result;
 	}
 
 	protected function getSQL(): string {
 		// From the overridden method:
 		// "For back-compat, subclasses may return a raw SQL query here, as a string.
 		// This is strongly deprecated; getQueryInfo() should be overridden instead."
+		Utils::markTime( $this->getOutput(), 'getSQL' );
 		return SqlProvider::getSQL(
 			$this->query->category(), $this->query->subcategory(),
 			$this->query->allSubcategories(), $this->query->appliedFilters() );
+	}
+
+	public function reallyDoQuery( $limit, $offset = false ) {
+		Utils::markTime( $this->getOutput(), '> reallyDoQuery' );
+		$result = parent::reallyDoQuery( $limit, $offset );
+		Utils::markTime( $this->getOutput(), '< reallyDoQuery' );
+		return $result;
 	}
 
 	protected function getOrderFields() {
@@ -84,6 +96,7 @@ class QueryPage extends \QueryPage {
 		$semanticResultPrinter = new SemanticResultPrinter( $res, $num );
 		$displayParametersList = $this->parameters->displayParametersList();
 		foreach ( $displayParametersList as $displayParameters ) {
+			Utils::markTime( $out, "> Calling SemanticResultPrinter for " . $displayParameters->caption );
 			$text = $semanticResultPrinter->getText( iterator_to_array( $displayParameters ) );
 
 			$out->addHTML( Html::openElement( 'div', [ 'class' => 'drilldown-result' ] ) );
@@ -98,8 +111,10 @@ class QueryPage extends \QueryPage {
 			$out->addHTML( Html::closeElement( 'div' ) );
 
 			$out->addHTML( Html::closeElement( 'div' ) );
+			Utils::markTime( $out, "< Calling SemanticResultPrinter for " . $displayParameters->caption );
 		}
 
+		Utils::markTime( $out, "Add outro template" );
 		// Add outro template
 		$footerPage = $this->parameters->footer();
 		if ( $footerPage !== null ) {
