@@ -3,30 +3,37 @@
 namespace SD\Specials\BrowseData;
 
 use Html;
-use IDatabase;
 use OutputPage;
 use SD\Parameters\Parameters;
 use SD\Sql\SqlProvider;
-use Skin;
+use SD\Utils;
 use SMWOutputs;
 use Title;
 use WikiPage;
 
 class QueryPage extends \QueryPage {
 	private Printer $printer;
+	private UrlService $urlService;
 	private Parameters $parameters;
 	private DrilldownQuery $query;
 
-	public function __construct( $newPrinter, $context, $parameters, $query, $offset, $limit ) {
+	private ProcessTemplate $processTemplate;
+
+	public function __construct(
+		$newPrinter, $newUrlService, $context, $parameters, $query, $offset, $limit
+	) {
 		parent::__construct( 'BrowseData' );
 
 		$this->setContext( $context );
 		$this->printer = $newPrinter( $this->getOutput(), $this->getRequest(), $parameters, $query );
+		$this->urlService = $newUrlService( $this->getRequest(), $query );
 
 		$this->parameters = $parameters;
 		$this->query = $query;
 		$this->offset = $offset;
 		$this->limit = $limit;
+
+		$this->processTemplate = new ProcessTemplate;
 	}
 
 	public function getName() {
@@ -42,7 +49,19 @@ class QueryPage extends \QueryPage {
 	}
 
 	protected function getPageHeader(): string {
-		return $this->printer->getPageHeader();
+		$categories = Utils::getCategoriesForBrowsing();
+		if ( empty( $categories ) ) {
+			return "";
+		}
+
+		return ( $this->processTemplate ) ( 'QueryPageHeader', [
+			'introTemplate' => $this->getIntroTemplate(),
+			'categories' => $this->urlService->showSingleCat() ? null
+				: $this->printer->getCategories( $categories ),
+			'appliedFilters' => $this->printer->getAppliedFilters(),
+			'applicableFilters' => $this->printer->getApplicableFilters(),
+			'unpagedResults' => $this->printer->getUnpagedResults()
+		] );
 	}
 
 	protected function getSQL(): string {
@@ -67,52 +86,13 @@ class QueryPage extends \QueryPage {
 		return $this->getLinkRenderer()->makeLink( $title, $title->getText() );
 	}
 
-	/**
-	 * Format and output report results using the given information plus
-	 * OutputPage
-	 *
-	 * @param OutputPage $out OutputPage to print to
-	 * @param Skin $skin User skin to use
-	 * @param IDatabase $dbr Database (read) connection to use
-	 * @param int $res Result pointer
-	 * @param int $num Number of available result rows
-	 * @param int $offset Paging offset
-	 */
 	protected function outputResults( $out, $skin, $dbr, $res, $num, $offset ) {
-		$out->addHTML( Html::openElement( 'div', [ 'class' => 'drilldown-results-output' ] ) );
+		$out->addHTML( ( $this->processTemplate )( 'QueryPageOutput', [
+			'drilldownResults' => $this->getDrilldownResults( $out, $res, $num ),
+			'footer' => $this->getFooter( $out ),
+		] ) );
 
-		$semanticResultPrinter = new SemanticResultPrinter( $res, $num );
-		$displayParametersList = $this->parameters->displayParametersList();
-		foreach ( $displayParametersList as $displayParameters ) {
-			$text = $semanticResultPrinter->getText( iterator_to_array( $displayParameters ) );
-
-			$out->addHTML( Html::openElement( 'div', [ 'class' => 'drilldown-result' ] ) );
-			// add caption
-			if ( $displayParameters->caption !== null ) {
-				$out->addHTML( Html::element( 'div', [ 'class' => 'drilldown-result-heading' ],
-					$displayParameters->caption ) );
-			}
-			// add results
-			$out->addHTML( Html::openElement( 'div', [ 'class' => 'drilldown-result-body' ] ) );
-			$out->addWikiTextAsInterface( $text );
-			$out->addHTML( Html::closeElement( 'div' ) );
-
-			$out->addHTML( Html::closeElement( 'div' ) );
-		}
-
-		// Add outro template
-		$footerPage = $this->parameters->footer();
-		if ( $footerPage !== null ) {
-			$title = Title::newFromText( $footerPage );
-			$page = WikiPage::factory( $title );
-
-			if ( $page->exists() ) {
-				$content = $page->getContent();
-				$pageContent = $content->serialize();
-				$out->addWikiTextAsInterface( $pageContent );
-			}
-		}
-
+		// U-uh...!
 		// close drilldown-results
 		$out->addHTML( Html::closeElement( 'div' ) );
 
@@ -127,11 +107,59 @@ class QueryPage extends \QueryPage {
 	}
 
 	protected function closeList() {
-		return "\n			<br style=\"clear: both\" />\n";
+		return '<br style="clear: both" />';
 	}
 
 	protected function linkParameters() {
-		return $this->printer->linkParameters();
+		return $this->urlService->getLinkParameters();
+	}
+
+	private function getDrilldownResults( OutputPage $out, $res, $num ): array {
+		$drilldownResults = [];
+		$semanticResultPrinter = new SemanticResultPrinter( $res, $num );
+		$displayParametersList = $this->parameters->displayParametersList();
+		foreach ( $displayParametersList as $displayParameters ) {
+			$text = $semanticResultPrinter->getText( iterator_to_array( $displayParameters ) );
+			$drilldownResults[] = [
+				'heading' => $displayParameters->caption,
+				'body' => $out->parseAsInterface( $text ),
+			];
+			// Do we additionally need to add MetaData to $out here?
+		}
+
+		return $drilldownResults;
+	}
+
+	private function getIntroTemplate() {
+		$headerPage = $this->parameters->header();
+		if ( $headerPage !== null ) {
+			$title = Title::newFromText( $headerPage );
+			$page = WikiPage::factory( $title );
+			if ( $page->exists() ) {
+				$content = $page->getContent();
+				$pageContent = $content->serialize();
+				return $this->getOutput()->parseInlineAsInterface( $pageContent );
+			}
+		}
+		return '';
+	}
+
+	private function getFooter( OutputPage $out ): ?string {
+		$footer = null;
+		$footerPage = $this->parameters->footer();
+		if ( $footerPage !== null ) {
+			$title = Title::newFromText( $footerPage );
+			$page = WikiPage::factory( $title );
+
+			if ( $page->exists() ) {
+				$content = $page->getContent();
+				$pageContent = $content->serialize();
+				$footer = $out->parseAsInterface( $pageContent );
+				// Do we additionally need to add MetaData to $out here?
+			}
+		}
+
+		return $footer;
 	}
 
 }

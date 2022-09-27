@@ -14,6 +14,8 @@ use SD\Specials\BrowseData\DrilldownQuery;
 use SD\Specials\BrowseData\Printer;
 use SD\Specials\BrowseData\QueryPage;
 use SD\Specials\BrowseData\SpecialBrowseData;
+use SD\Specials\BrowseData\UrlService;
+use SpecialPage;
 use WebRequest;
 use Wikimedia\Rdbms\DBConnRef;
 
@@ -78,12 +80,21 @@ class Services {
 
 	private function getNewQueryPage(): Closure {
 		return fn( $context, $parameters, $query, $offset, $limit ) =>
-			new QueryPage( $this->getNewPrinter(), $context, $parameters, $query, $offset, $limit );
+			new QueryPage( $this->getNewPrinter(), $this->getNewUrlService(),
+				$context, $parameters, $query, $offset, $limit );
 	}
 
 	private function getNewPrinter(): Closure {
 		return fn( OutputPage $output, WebRequest $request, Parameters $parameters, DrilldownQuery $query ) =>
-			new Printer( $this->getRepository(), $this->getPageProps(), $output, $request, $parameters, $query );
+			new Printer(
+				$this->getRepository(), $this->getPageProps(), $this->getNewUrlService()( $request, $query ),
+				$output, $request, $parameters, $query );
+	}
+
+	private function getNewUrlService(): Closure {
+		return fn( WebRequest $request, DrilldownQuery $query ) =>
+			new UrlService(
+				SpecialPage::getTitleFor( 'BrowseData' )->getLocalURL(), $request, $query );
 	}
 
 	private function getNewFilter(): Closure {

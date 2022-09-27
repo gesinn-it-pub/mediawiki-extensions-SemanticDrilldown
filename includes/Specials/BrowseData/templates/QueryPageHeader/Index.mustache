@@ -12,5 +12,12 @@
         {{#applicableFilters}}
             {{{remainingHtml}}}
         {{/applicableFilters}}
+        <div class="unpaged-results">
+            {{#nonPagedResults}}
+                <div class="unpaged-results">
+                    {{html}}
+                </div>
+            {{/nonPagedResults}}
+        </div>
     </div>
 </div>
