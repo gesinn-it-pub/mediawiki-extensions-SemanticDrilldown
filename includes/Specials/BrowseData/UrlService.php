@@ -3,6 +3,7 @@
 namespace SD\Specials\BrowseData;
 
 use SD\AppliedFilterValue;
+use WebRequest;
 
 class UrlService {
 
@@ -10,7 +11,7 @@ class UrlService {
 	private $request;
 	private $query;
 
-	public function __construct( $browseDataLocalUrl, $request, $query ) {
+	public function __construct( string $browseDataLocalUrl, WebRequest $request, DrilldownQuery $query ) {
 		$this->browseDataLocalUrl = $browseDataLocalUrl;
 		$this->request = $request;
 		$this->query = $query;

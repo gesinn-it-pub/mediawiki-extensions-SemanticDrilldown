@@ -1,14 +1,14 @@
-<div class="drilldown-results-output">
-    {{#drilldownResults}}
-        <div class="drilldown-result">
-            {{#heading}}
-                <div class="drilldown-result-heading">
-                    {{heading}}
+        <div class="drilldown-results-output">
+            {{#drilldownResults}}
+                <div class="drilldown-result">
+                    <div class="drilldown-result-heading">{{heading}}</div>
+                    <div class="drilldown-result-body">
+                        {{{body}}}
+                    </div>
                 </div>
-            {{/heading}}
-            <div class="drilldown-result-body">
-                {{{body}}}
-            </div>
+            {{/drilldownResults}}
+            {{{footer}}}
         </div>
-    {{/drilldownResults}}
-</div>
+    {{! Close the Bootstrap Panel wrapper opened in QueryPageHeader }}
+    </div> <!-- panel-body -->
+</div> <!-- panel -->

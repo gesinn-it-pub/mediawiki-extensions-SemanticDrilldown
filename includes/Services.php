@@ -4,20 +4,19 @@ namespace SD;
 
 use Closure;
 use MediaWiki\MediaWikiServices;
-use OutputPage;
 use PageProps;
 use SD\Parameters\LoadParameters;
-use SD\Parameters\Parameters;
 use SD\ParserFunctions\DrilldownInfo;
 use SD\ParserFunctions\DrilldownLink;
 use SD\Specials\BrowseData\DrilldownQuery;
-use SD\Specials\BrowseData\Printer;
 use SD\Specials\BrowseData\QueryPage;
 use SD\Specials\BrowseData\SpecialBrowseData;
 use SD\Specials\BrowseData\UrlService;
 use SpecialPage;
+use Title;
 use WebRequest;
 use Wikimedia\Rdbms\DBConnRef;
+use WikiPage;
 
 /**
  * The service locator of the SemanticDrilldown extension.
@@ -80,15 +79,10 @@ class Services {
 
 	private function getNewQueryPage(): Closure {
 		return fn( $context, $parameters, $query, $offset, $limit ) =>
-			new QueryPage( $this->getNewPrinter(), $this->getNewUrlService(),
+			new QueryPage(
+				$this->getRepository(), $this->getPageProps(), $this->getNewUrlService(),
+				$this->getGetPageFromTitleText(),
 				$context, $parameters, $query, $offset, $limit );
-	}
-
-	private function getNewPrinter(): Closure {
-		return fn( OutputPage $output, WebRequest $request, Parameters $parameters, DrilldownQuery $query ) =>
-			new Printer(
-				$this->getRepository(), $this->getPageProps(), $this->getNewUrlService()( $request, $query ),
-				$output, $request, $parameters, $query );
 	}
 
 	private function getNewUrlService(): Closure {
@@ -111,6 +105,13 @@ class Services {
 
 	private function getPageProps(): PageProps {
 		return PageProps::getInstance();
+	}
+
+	private function getGetPageFromTitleText(): Closure {
+		return static function ( string $text ) {
+			$title = Title::newFromText( $text );
+			return WikiPage::factory( $title );
+		};
 	}
 
 	private function getDbConnectionRef(): DBConnRef {

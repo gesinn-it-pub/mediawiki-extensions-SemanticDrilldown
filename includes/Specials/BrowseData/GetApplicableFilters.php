@@ -5,139 +5,42 @@ namespace SD\Specials\BrowseData;
 use Html;
 use MediaWiki\Widget\DateInputWidget;
 use OutputPage;
-use PageProps;
 use SD\AppliedFilter;
 use SD\AppliedFilterValue;
 use SD\Filter;
-use SD\Parameters\Parameters;
 use SD\PossibleFilterValue;
 use SD\PossibleFilterValues;
 use SD\Repository;
 use SD\Utils;
-use Title;
 use WebRequest;
 
-class Printer {
+class GetApplicableFilters {
 
 	private Repository $repository;
-	private PageProps $pageProps;
 	private UrlService $urlService;
 	private OutputPage $output;
 	private WebRequest $request;
-	private Parameters $parameters;
 	private DrilldownQuery $query;
 
 	public function __construct(
-		Repository $repository, PageProps $pageProps, UrlService $urlService,
-		OutputPage $output, WebRequest $request, Parameters $parameters, DrilldownQuery $query
+		Repository $repository, UrlService $urlService,
+		OutputPage $output, WebRequest $request, DrilldownQuery $query
 	) {
 		$this->repository = $repository;
-		$this->pageProps = $pageProps;
 		$this->urlService = $urlService;
 		$this->output = $output;
 		$this->request = $request;
-		$this->parameters = $parameters;
 		$this->query = $query;
 	}
 
-	public function getCategories( $categories ): array {
-		$toCategoryViewModel = function ( $category ) {
-			$category_children = $this->repository->getCategoryChildren( $category, false, 5 );
-			return [
-				'name' => $category . " (" . count( array_unique( $category_children ) ) . ")",
-				'isSelected' => str_replace( '_', ' ', $this->query->category() ) == $category,
-				'url' => $this->getUrl( $category )
-			];
-		};
-
-		global $sdgShowCategoriesAsTabs;
-		return [
-			'categoriesAsTabs' => $sdgShowCategoriesAsTabs,
-			'categories' => array_map( $toCategoryViewModel, $categories )
-		];
-	}
-
-	public function getAppliedFilters(): array {
-		global $wgScriptPath;
-		$sdSkinsPath = $wgScriptPath . '/extensions/SemanticDrilldown/skins';
-
-		$remainingHtml = '';
-		$subcategory_text = wfMessage( 'sd_browsedata_subcategory' )->text();
-
-		$query = $this->query;
-
-		if ( $query->subcategory() ) {
-			$remainingHtml .= " > ";
-			$remainingHtml .= "$subcategory_text: ";
-			$subcat_string = str_replace( '_', ' ', $query->subcategory() );
-			$remove_filter_url = $this->getUrl( $query->category(), $query->appliedFilters() );
-			$remainingHtml .= '<span class="drilldown-header-value">' . $subcat_string . '</span>' .
-				'<a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removesubcategoryfilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a> ';
-		}
-
-		foreach ( $query->appliedFilters() as $i => $af ) {
-			$remainingHtml .= ( !$query->subcategory() && $i == 0 ) ? " > " : "<span class=\"drilldown-header-value\">&</span>";
-			$filter_label = $af->filter->name();
-			// add an "x" to remove this filter, if it has more
-			// than one value
-			if ( count( $query->appliedFilters()[$i]->values ) > 1 ) {
-				$temp_filters_array = $query->appliedFilters();
-				array_splice( $temp_filters_array, $i, 1 );
-				$remove_filter_url = $this->getUrl( $query->category(), $temp_filters_array, $query->subcategory() );
-				array_splice( $temp_filters_array, $i, 0 );
-				$remainingHtml .= $filter_label . ' <a href="' . $remove_filter_url . '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a> : ';
-			} else {
-				$remainingHtml .= "$filter_label: ";
-			}
-			foreach ( $af->values as $j => $fv ) {
-				if ( $j > 0 ) {
-					$remainingHtml .= ' <span class="drilldown-or">' . wfMessage( 'sd_browsedata_or' )->text() . '</span> ';
-				}
-				$filter_text = Utils::escapeString( $this->getNiceAppliedFilterValue( $af->filter->propertyType(), $fv->text ) );
-				$temp_filters_array = $query->appliedFilters();
-				$removed_values = array_splice( $temp_filters_array[$i]->values, $j, 1 );
-				$remove_filter_url = $this->getUrl( $query->category(), $temp_filters_array, $query->subcategory() );
-				array_splice( $temp_filters_array[$i]->values, $j, 0, $removed_values );
-				$remainingHtml .= '<span class="drilldown-header-value">' . $filter_text . '</span> <a href="' . $remove_filter_url
-					. '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /></a>';
-			}
-
-			if ( $af->search_terms != null ) {
-				foreach ( $af->search_terms as $j => $search_term ) {
-					if ( $j > 0 ) {
-						$remainingHtml .= ' <span class="drilldown-or">' . wfMessage( 'sd_browsedata_or' )->text() . '</span> ';
-					}
-					$filter_text = Utils::escapeString( $this->getNiceAppliedFilterValue( $af->filter->propertyType(), $search_term ) );
-					$temp_filters_array = $query->appliedFilters();
-					$removed_values = array_splice( $temp_filters_array[$i]->search_terms, $j, 1 );
-					$remove_filter_url = $this->getUrl( $query->category(), $temp_filters_array, $query->subcategory() );
-					array_splice( $temp_filters_array[$i]->search_terms, $j, 0, $removed_values );
-					$remainingHtml .= '<span class="drilldown-header-value">~ \'' . $filter_text . '\'</span> <a href="' . $remove_filter_url
-						. '" title="' . wfMessage( 'sd_browsedata_removefilter' )->text() . '"><img src="' . $sdSkinsPath . '/filter-x.png" /> </a>';
-				}
-			} elseif ( $af->lower_date != null || $af->upper_date != null ) {
-				$remainingHtml .= "<span class=\"drilldown-header-value\">" . $af->lower_date_string . " - " . $af->upper_date_string . "</span>";
-			}
-		}
-
-		return [
-			'category' => str_replace( '_', ' ', $query->category() ),
-			'categoryUrl' => $this->getUrl( $query->category() ),
-			'remainingHtml' => $remainingHtml,
-		];
-	}
-
-	public function getApplicableFilters(): array {
+	public function __invoke(): array {
 		global $sdgFiltersSmallestFontSize, $sdgFiltersLargestFontSize;
 
 		$remainingHtml = '';
-		$drilldown_description = wfMessage( 'sd_browsedata_docu' )->text();
-		$remainingHtml .= "<p>$drilldown_description</p>";
 		// display the list of subcategories on one line, and below
 		// it every filter, each on its own line; each line will
 		// contain the possible values, and, in parentheses, the
 		// number of pages that match that value
-		$remainingHtml .= "<div class=\"drilldown-filters\">";
 		$cur_url = $this->getUrl( $this->query->category(), $this->query->appliedFilters(), $this->query->subcategory() );
 		$cur_url .= ( strpos( $cur_url, '?' ) ) ? '&' : '?';
 		$this->repository->createTempTable( $this->query->category(), $this->query->subcategory(), $this->query->allSubcategories(), $this->query->appliedFilters() );
@@ -207,12 +110,8 @@ class Printer {
 		}
 
 		return [
-			'remainingHtml' => $remainingHtml
+			'remainingHtml' => $remainingHtml,
 		];
-	}
-
-	public function getUnpagedResults() {
-		return null;
 	}
 
 	/**
@@ -272,36 +171,6 @@ END;
 		return $text;
 	}
 
-	private function getNiceAppliedFilterValue( string $propertyType, string $value ): string {
-		if ( $propertyType === 'page' ) {
-			$title = Title::newFromText( $value );
-			$displayTitle = $this->pageProps->getProperties( $title, 'displaytitle' );
-			$value = $displayTitle === [] ? $value : htmlspecialchars_decode( array_values( $displayTitle )[0] );
-		}
-
-		return $this->getNiceFilterValue( $propertyType, $value );
-	}
-
-	/**
-	 * Return a "nice" version of the value for a filter, if it's some
-	 * special case like 'other', 'none', a boolean, etc.
-	 */
-	private function getNiceFilterValue( string $propertyType, string $value ): string {
-		$value = str_replace( '_', ' ', $value );
-		// if it's boolean, display something nicer than "0" or "1"
-		if ( $value === ' other' ) {
-			return wfMessage( 'sd_browsedata_other' )->text();
-		} elseif ( $value === ' none' ) {
-			return wfMessage( 'sd_browsedata_none' )->text();
-		} elseif ( $propertyType === 'boolean' ) {
-			return Utils::booleanToString( $value );
-		} elseif ( $propertyType === 'date' && strpos( $value, '//T' ) ) {
-			return str_replace( '//T', '', $value );
-		} else {
-			return $value;
-		}
-	}
-
 	/**
 	 * Print the line showing 'OR' values for a filter that already has
 	 * at least one value set
@@ -346,7 +215,8 @@ END;
 			if ( $i++ > 0 ) {
 				$results_line .= " · ";
 			}
-			$filter_text = Utils::escapeString( $this->getNiceFilterValue( $af->filter->propertyType(), $or_value->displayValue() ) );
+			$filter_text = Utils::escapeString( Utils::getNiceFilterValue( $af->filter->propertyType(),
+				$or_value->displayValue() ) );
 			$applied_filters = $this->query->appliedFilters();
 			foreach ( $applied_filters as $af2 ) {
 				if ( $af->filter->name() == $af2->filter->name() ) {
@@ -398,7 +268,8 @@ END;
 			if ( $num_printed_values++ > 0 ) {
 				$results_line .= "<span class=\"sep\"> · </span>";
 			}
-			$filter_text = Utils::escapeString( $this->getNiceFilterValue( $f->propertyType(), $value->displayValue() ) );
+			$filter_text = Utils::escapeString( Utils::getNiceFilterValue( $f->propertyType(),
+				$value->displayValue() ) );
 			$filter_text .= "&nbsp;($num_results)";
 			$filter_url = $cur_url . urlencode( str_replace( ' ', '_', $f->name() ) ) . '=' . urlencode( str_replace( ' ', '_', $value->value() ) );
 			$styleAttribute = "";
@@ -504,11 +375,11 @@ END;
 END;
 
 		$text .= Html::input(
-				null,
-				wfMessage( 'sd_browsedata_search' )->text(),
-				'submit',
-				[ 'style' => 'margin: 4px 0 8px 0;' ]
-			);
+			null,
+			wfMessage( 'sd_browsedata_search' )->text(),
+			'submit',
+			[ 'style' => 'margin: 4px 0 8px 0;' ]
+		);
 		$text .= "</form>";
 		return $text;
 	}

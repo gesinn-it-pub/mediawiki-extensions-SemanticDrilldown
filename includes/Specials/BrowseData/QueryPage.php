@@ -2,34 +2,54 @@
 
 namespace SD\Specials\BrowseData;
 
-use Html;
-use OutputPage;
+use Closure;
+use PageProps;
+use RequestContext;
 use SD\Parameters\Parameters;
+use SD\Repository;
 use SD\Sql\SqlProvider;
 use SD\Utils;
 use SMWOutputs;
 use Title;
-use WikiPage;
 
 class QueryPage extends \QueryPage {
-	private Printer $printer;
 	private UrlService $urlService;
-	private Parameters $parameters;
-	private DrilldownQuery $query;
+	private GetPageContent $getPageContent;
+	private GetCategories $getCategories;
+	private GetAppliedFilters $getAppliedFilters;
+	private GetApplicableFilters $getApplicableFilters;
+	private GetUnpagedResults $getUnpagedResults;
+	private GetDrilldownResults $getDrilldownResults;
 
 	private ProcessTemplate $processTemplate;
 
+	private DrilldownQuery $query;
+	private ?string $headerPage;
+	private ?string $footerPage;
+
 	public function __construct(
-		$newPrinter, $newUrlService, $context, $parameters, $query, $offset, $limit
+		Repository $repository, PageProps $pageProps, Closure $newUrlService,
+		Closure $getPageFromTitleText, RequestContext $context, Parameters $parameters,
+		DrilldownQuery $query, int $offset, int $limit
 	) {
 		parent::__construct( 'BrowseData' );
-
 		$this->setContext( $context );
-		$this->printer = $newPrinter( $this->getOutput(), $this->getRequest(), $parameters, $query );
-		$this->urlService = $newUrlService( $this->getRequest(), $query );
 
-		$this->parameters = $parameters;
+		$request = $context->getRequest();
+		$output = $this->getOutput();
+
+		$urlService = $newUrlService( $request, $query );
+		$this->getPageContent = new GetPageContent( $getPageFromTitleText, $output );
+		$this->getCategories = new GetCategories( $repository, $urlService, $query );
+		$this->getAppliedFilters = new GetAppliedFilters( $pageProps, $urlService, $query );
+		$this->getApplicableFilters = new GetApplicableFilters( $repository, $urlService, $output, $request, $query );
+		$this->getUnpagedResults = new GetUnpagedResults();
+		$this->getDrilldownResults = new GetDrilldownResults( $parameters->displayParametersList() );
+
+		$this->urlService = $urlService;
 		$this->query = $query;
+		$this->headerPage = $parameters->header();
+		$this->footerPage = $parameters->footer();
 		$this->offset = $offset;
 		$this->limit = $limit;
 
@@ -37,7 +57,7 @@ class QueryPage extends \QueryPage {
 	}
 
 	public function getName() {
-		return "BrowseData";
+		return 'BrowseData';
 	}
 
 	public function isExpensive() {
@@ -51,16 +71,15 @@ class QueryPage extends \QueryPage {
 	protected function getPageHeader(): string {
 		$categories = Utils::getCategoriesForBrowsing();
 		if ( empty( $categories ) ) {
-			return "";
+			return '';
 		}
 
 		return ( $this->processTemplate ) ( 'QueryPageHeader', [
-			'introTemplate' => $this->getIntroTemplate(),
-			'categories' => $this->urlService->showSingleCat() ? null
-				: $this->printer->getCategories( $categories ),
-			'appliedFilters' => $this->printer->getAppliedFilters(),
-			'applicableFilters' => $this->printer->getApplicableFilters(),
-			'unpagedResults' => $this->printer->getUnpagedResults()
+			'header' => ( $this->getPageContent )( $this->headerPage ),
+			'categories' => ( $this->getCategories )( $categories ),
+			'appliedFilters' => ( $this->getAppliedFilters )(),
+			'applicableFilters' => ( $this->getApplicableFilters )(),
+			'unpagedResults' => ( $this->getUnpagedResults )(),
 		] );
 	}
 
@@ -88,16 +107,9 @@ class QueryPage extends \QueryPage {
 
 	protected function outputResults( $out, $skin, $dbr, $res, $num, $offset ) {
 		$out->addHTML( ( $this->processTemplate )( 'QueryPageOutput', [
-			'drilldownResults' => $this->getDrilldownResults( $out, $res, $num ),
-			'footer' => $this->getFooter( $out ),
+			'drilldownResults' => ( $this->getDrilldownResults )( $out, $res, $num ),
+			'footer' => ( $this->getPageContent )( $this->footerPage ),
 		] ) );
-
-		// U-uh...!
-		// close drilldown-results
-		$out->addHTML( Html::closeElement( 'div' ) );
-
-		// close the Bootstrap Panel wrapper opened in getPageHeader();
-		$out->addHTML( '</div></div>' );
 
 		SMWOutputs::commitToOutputPage( $out );
 	}
@@ -111,55 +123,7 @@ class QueryPage extends \QueryPage {
 	}
 
 	protected function linkParameters() {
-		return $this->urlService->getLinkParameters();
-	}
-
-	private function getDrilldownResults( OutputPage $out, $res, $num ): array {
-		$drilldownResults = [];
-		$semanticResultPrinter = new SemanticResultPrinter( $res, $num );
-		$displayParametersList = $this->parameters->displayParametersList();
-		foreach ( $displayParametersList as $displayParameters ) {
-			$text = $semanticResultPrinter->getText( iterator_to_array( $displayParameters ) );
-			$drilldownResults[] = [
-				'heading' => $displayParameters->caption,
-				'body' => $out->parseAsInterface( $text ),
-			];
-			// Do we additionally need to add MetaData to $out here?
-		}
-
-		return $drilldownResults;
-	}
-
-	private function getIntroTemplate() {
-		$headerPage = $this->parameters->header();
-		if ( $headerPage !== null ) {
-			$title = Title::newFromText( $headerPage );
-			$page = WikiPage::factory( $title );
-			if ( $page->exists() ) {
-				$content = $page->getContent();
-				$pageContent = $content->serialize();
-				return $this->getOutput()->parseInlineAsInterface( $pageContent );
-			}
-		}
-		return '';
-	}
-
-	private function getFooter( OutputPage $out ): ?string {
-		$footer = null;
-		$footerPage = $this->parameters->footer();
-		if ( $footerPage !== null ) {
-			$title = Title::newFromText( $footerPage );
-			$page = WikiPage::factory( $title );
-
-			if ( $page->exists() ) {
-				$content = $page->getContent();
-				$pageContent = $content->serialize();
-				$footer = $out->parseAsInterface( $pageContent );
-				// Do we additionally need to add MetaData to $out here?
-			}
-		}
-
-		return $footer;
+		return $this->urlService->getLinkParameters( $this->getRequest(), $this->query );
 	}
 
 }

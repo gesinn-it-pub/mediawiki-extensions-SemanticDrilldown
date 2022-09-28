@@ -1,6 +1,6 @@
-{{{introTemplate}}}
+{{{header}}}
 {{#categories}}{{>Categories}}{{/categories}}
-<div class="panel panel panel-default">
+<div class="panel panel-default">
     <div class="panel-heading">&nbsp;</div>
     <div class="panel-body">
         {{#appliedFilters}}
@@ -10,7 +10,10 @@
             </div>
         {{/appliedFilters}}
         {{#applicableFilters}}
-            {{{remainingHtml}}}
+            <p>{{msg_sd_browsedata_docu}}</p>
+            <div class="drilldown-filters">
+                {{{remainingHtml}}}
+            </div>
         {{/applicableFilters}}
         <div class="unpaged-results">
             {{#nonPagedResults}}
@@ -19,5 +22,4 @@
                 </div>
             {{/nonPagedResults}}
         </div>
-    </div>
-</div>
+   {{! The 2 remaining divs are closed in QueryPageOutput }}
