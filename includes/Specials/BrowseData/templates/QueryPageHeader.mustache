@@ -1,5 +1,5 @@
 {{{header}}}
-{{#categories}}{{>Categories}}{{/categories}}
+{{#categories}}{{>QueryPageHeader.Categories}}{{/categories}}
 <div class="panel panel-default">
     <div class="panel-heading">&nbsp;</div>
     <div class="panel-body">
@@ -15,11 +15,7 @@
                 {{{remainingHtml}}}
             </div>
         {{/applicableFilters}}
-        <div class="unpaged-results">
-            {{#nonPagedResults}}
-                <div class="unpaged-results">
-                    {{html}}
-                </div>
-            {{/nonPagedResults}}
+        <div class="drilldown-results-output drilldown-results-output-unpaged">
+            {{>Results}}
         </div>
    {{! The 2 remaining divs are closed in QueryPageOutput }}

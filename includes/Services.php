@@ -59,8 +59,8 @@ class Services {
 			$s->getNewQueryPage(), $s->getBuildFilters() );
 	}
 
-	private function getRepository(): Repository {
-		return new Repository( $this->getDbConnectionRef() );
+	private function getRepository(): DbService {
+		return new DbService( $this->getPrimaryDbConnectionRef(), $this->getReplicaDbConnectionRef() );
 	}
 
 	private function getBuildFilters(): BuildFilters {
@@ -114,8 +114,12 @@ class Services {
 		};
 	}
 
-	private function getDbConnectionRef(): DBConnRef {
+	private function getPrimaryDbConnectionRef(): DBConnRef {
 		return $this->services->getDBLoadBalancer()->getConnectionRef( DB_PRIMARY );
+	}
+
+	private function getReplicaDbConnectionRef(): DBConnRef {
+		return $this->services->getDBLoadBalancer()->getConnectionRef( DB_REPLICA );
 	}
 
 }

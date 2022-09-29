@@ -6,8 +6,8 @@ use TemplateParser;
 
 class ProcessTemplate {
 
-	public function __invoke( $templateFolder, $vm ) {
-		$templateParser = new TemplateParser( __DIR__ . "/templates/$templateFolder" );
+	public function __invoke( $template, $vm ) {
+		$templateParser = new TemplateParser( __DIR__ . "/templates" );
 
 		$messages = [
 			'sd_browsedata_subcategory',
@@ -33,7 +33,7 @@ class ProcessTemplate {
 			$msg[ "msg_$message" ] = wfMessage( $message )->text();
 		}
 
-		return $templateParser->processTemplate( 'Index', $vm + $msg );
+		return $templateParser->processTemplate( $template, $vm + $msg );
 	}
 
 }

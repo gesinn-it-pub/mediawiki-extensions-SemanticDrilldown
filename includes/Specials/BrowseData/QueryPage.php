@@ -5,30 +5,36 @@ namespace SD\Specials\BrowseData;
 use Closure;
 use PageProps;
 use RequestContext;
+use SD\DbService;
 use SD\Parameters\Parameters;
-use SD\Repository;
 use SD\Sql\SqlProvider;
 use SD\Utils;
 use SMWOutputs;
 use Title;
 
 class QueryPage extends \QueryPage {
+
+	private DbService $db;
 	private UrlService $urlService;
 	private GetPageContent $getPageContent;
 	private GetCategories $getCategories;
 	private GetAppliedFilters $getAppliedFilters;
 	private GetApplicableFilters $getApplicableFilters;
-	private GetUnpagedResults $getUnpagedResults;
-	private GetDrilldownResults $getDrilldownResults;
+	private GetSemanticResults $getSemanticResults;
 
 	private ProcessTemplate $processTemplate;
 
 	private DrilldownQuery $query;
 	private ?string $headerPage;
 	private ?string $footerPage;
+	private array $unpagedDisplayParametersList = [];
+	private array $pagedDisplayParametersList = [];
+
+	/** @var string|null cache for getSQL() */
+	private ?string $sql = null;
 
 	public function __construct(
-		Repository $repository, PageProps $pageProps, Closure $newUrlService,
+		DbService $db, PageProps $pageProps, Closure $newUrlService,
 		Closure $getPageFromTitleText, RequestContext $context, Parameters $parameters,
 		DrilldownQuery $query, int $offset, int $limit
 	) {
@@ -40,18 +46,26 @@ class QueryPage extends \QueryPage {
 
 		$urlService = $newUrlService( $request, $query );
 		$this->getPageContent = new GetPageContent( $getPageFromTitleText, $output );
-		$this->getCategories = new GetCategories( $repository, $urlService, $query );
+		$this->getCategories = new GetCategories( $db, $urlService, $query );
 		$this->getAppliedFilters = new GetAppliedFilters( $pageProps, $urlService, $query );
-		$this->getApplicableFilters = new GetApplicableFilters( $repository, $urlService, $output, $request, $query );
-		$this->getUnpagedResults = new GetUnpagedResults();
-		$this->getDrilldownResults = new GetDrilldownResults( $parameters->displayParametersList() );
+		$this->getApplicableFilters = new GetApplicableFilters( $db, $urlService, $output, $request, $query );
+		$this->getSemanticResults = new GetSemanticResults();
 
+		$this->db = $db;
 		$this->urlService = $urlService;
 		$this->query = $query;
 		$this->headerPage = $parameters->header();
 		$this->footerPage = $parameters->footer();
 		$this->offset = $offset;
 		$this->limit = $limit;
+
+		foreach ( $parameters->displayParametersList() ?? [] as $dps ) {
+			if ( $dps->unpaged ) {
+				$this->unpagedDisplayParametersList[] = $dps;
+			} else {
+				$this->pagedDisplayParametersList[] = $dps;
+			}
+		}
 
 		$this->processTemplate = new ProcessTemplate;
 	}
@@ -70,16 +84,17 @@ class QueryPage extends \QueryPage {
 
 	protected function getPageHeader(): string {
 		$categories = Utils::getCategoriesForBrowsing();
-		if ( empty( $categories ) ) {
+		if ( $this->query->category() === null && empty( $categories ) ) {
 			return '';
 		}
 
+		$res = $this->db->query( $this->getSQL() );
 		return ( $this->processTemplate ) ( 'QueryPageHeader', [
 			'header' => ( $this->getPageContent )( $this->headerPage ),
 			'categories' => ( $this->getCategories )( $categories ),
 			'appliedFilters' => ( $this->getAppliedFilters )(),
 			'applicableFilters' => ( $this->getApplicableFilters )(),
-			'unpagedResults' => ( $this->getUnpagedResults )(),
+			'results' => ( $this->getSemanticResults )( $this->unpagedDisplayParametersList, $this->getOutput(), $res ),
 		] );
 	}
 
@@ -87,9 +102,14 @@ class QueryPage extends \QueryPage {
 		// From the overridden method:
 		// "For back-compat, subclasses may return a raw SQL query here, as a string.
 		// This is strongly deprecated; getQueryInfo() should be overridden instead."
-		return SqlProvider::getSQL(
-			$this->query->category(), $this->query->subcategory(),
-			$this->query->allSubcategories(), $this->query->appliedFilters() );
+		if ( $this->sql === null ) {
+			$this->sql = SqlProvider::getSQL( $this->query->category(), $this->query->subcategory(),
+				$this->query->allSubcategories(), $this->query->appliedFilters() );
+		}
+
+		// Note: we have to return the SQL here even if we already know that there are no paged
+		// result displays; if there are no results, QueryPage also doesn't show the page header
+		return $this->sql;
 	}
 
 	protected function getOrderFields() {
@@ -107,7 +127,7 @@ class QueryPage extends \QueryPage {
 
 	protected function outputResults( $out, $skin, $dbr, $res, $num, $offset ) {
 		$out->addHTML( ( $this->processTemplate )( 'QueryPageOutput', [
-			'drilldownResults' => ( $this->getDrilldownResults )( $out, $res, $num ),
+			'results' => ( $this->getSemanticResults )( $this->pagedDisplayParametersList, $out, $res, $num ),
 			'footer' => ( $this->getPageContent )( $this->footerPage ),
 		] ) );
 

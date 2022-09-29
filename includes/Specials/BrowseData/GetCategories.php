@@ -2,18 +2,18 @@
 
 namespace SD\Specials\BrowseData;
 
-use SD\Repository;
+use SD\DbService;
 
 class GetCategories {
 
-	private Repository $repository;
+	private DbService $db;
 	private UrlService $urlService;
 	private DrilldownQuery $query;
 
 	public function __construct(
-		Repository $repository, UrlService $urlService, DrilldownQuery $query
+		DbService $db, UrlService $urlService, DrilldownQuery $query
 	) {
-		$this->repository = $repository;
+		$this->db = $db;
 		$this->urlService = $urlService;
 		$this->query = $query;
 	}
@@ -24,7 +24,7 @@ class GetCategories {
 		}
 
 		$toCategoryViewModel = function ( $category ) {
-			$category_children = $this->repository->getCategoryChildren( $category, false, 5 );
+			$category_children = $this->db->getCategoryChildren( $category, false, 5 );
 			return [
 				'name' => $category . " (" . count( array_unique( $category_children ) ) . ")",
 				'isSelected' => str_replace( '_', ' ', $this->query->category() ) == $category,

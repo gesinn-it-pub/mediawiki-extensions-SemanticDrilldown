@@ -7,26 +7,26 @@ use MediaWiki\Widget\DateInputWidget;
 use OutputPage;
 use SD\AppliedFilter;
 use SD\AppliedFilterValue;
+use SD\DbService;
 use SD\Filter;
 use SD\PossibleFilterValue;
 use SD\PossibleFilterValues;
-use SD\Repository;
 use SD\Utils;
 use WebRequest;
 
 class GetApplicableFilters {
 
-	private Repository $repository;
+	private DbService $db;
 	private UrlService $urlService;
 	private OutputPage $output;
 	private WebRequest $request;
 	private DrilldownQuery $query;
 
 	public function __construct(
-		Repository $repository, UrlService $urlService,
+		DbService $db, UrlService $urlService,
 		OutputPage $output, WebRequest $request, DrilldownQuery $query
 	) {
-		$this->repository = $repository;
+		$this->db = $db;
 		$this->urlService = $urlService;
 		$this->output = $output;
 		$this->request = $request;
@@ -43,7 +43,7 @@ class GetApplicableFilters {
 		// number of pages that match that value
 		$cur_url = $this->getUrl( $this->query->category(), $this->query->appliedFilters(), $this->query->subcategory() );
 		$cur_url .= ( strpos( $cur_url, '?' ) ) ? '&' : '?';
-		$this->repository->createTempTable( $this->query->category(), $this->query->subcategory(), $this->query->allSubcategories(), $this->query->appliedFilters() );
+		$this->db->createTempTable( $this->query->category(), $this->query->subcategory(), $this->query->allSubcategories(), $this->query->appliedFilters() );
 		$num_printed_values = 0;
 		if ( count( $this->query->nextLevelSubcategories() ) > 0 ) {
 			$results_line = "";
@@ -54,8 +54,8 @@ class GetApplicableFilters {
 			// display if necessary
 			$subcat_values = [];
 			foreach ( $this->query->nextLevelSubcategories() as $i => $subcat ) {
-				$further_subcats = $this->repository->getCategoryChildren( $subcat, true, 10 );
-				$num_results = $this->repository->getNumResults( $subcat, $further_subcats );
+				$further_subcats = $this->db->getCategoryChildren( $subcat, true, 10 );
+				$num_results = $this->db->getNumResults( $subcat, $further_subcats );
 				$subcat_values[$subcat] = $num_results;
 			}
 			// get necessary values for creating the tag cloud,
@@ -468,7 +468,7 @@ END;
 	}
 
 	private function getPossibleValues( Filter $f ): PossibleFilterValues {
-		$this->repository->createFilterValuesTempTable( $f->propertyType(), $f->escapedProperty() );
+		$this->db->createFilterValuesTempTable( $f->propertyType(), $f->escapedProperty() );
 		if ( empty( $f->allowedValues() ) ) {
 			$possibleFilterValues = $f->propertyType() == 'date'
 				? $f->getTimePeriodValues()
@@ -477,14 +477,14 @@ END;
 			$possibleValues = [];
 			foreach ( $f->allowedValues() as $value ) {
 				$new_filter = AppliedFilter::create( $f, $value );
-				$num_results = $this->repository->getNumResults( $this->query->subcategory(), $this->query->allSubcategories(), $new_filter );
+				$num_results = $this->db->getNumResults( $this->query->subcategory(), $this->query->allSubcategories(), $new_filter );
 				if ( $num_results > 0 ) {
 					$possibleValues[] = new PossibleFilterValue( $value, $num_results );
 				}
 			}
 			$possibleFilterValues = new PossibleFilterValues( $possibleValues );
 		}
-		$this->repository->dropFilterValuesTempTable();
+		$this->db->dropFilterValuesTempTable();
 
 		$additionalPossibleValues = [];
 		// Now get values for 'Other' and 'None', as well
@@ -492,7 +492,7 @@ END;
 		// obtained dynamically.
 		if ( !empty( $f->allowedValues() ) ) {
 			$other_filter = AppliedFilter::create( $f, ' other' );
-			$num_results = $this->repository->getNumResults( $this->query->subcategory(), $this->query->allSubcategories(), $other_filter );
+			$num_results = $this->db->getNumResults( $this->query->subcategory(), $this->query->allSubcategories(), $other_filter );
 			if ( $num_results > 0 ) {
 				$additionalPossibleValues[] = new PossibleFilterValue( '_other', $num_results );
 			}
@@ -503,7 +503,7 @@ END;
 			$fv = AppliedFilterValue::create( $f->allowedValues()[0] );
 			if ( !$fv->is_numeric ) {
 				$none_filter = AppliedFilter::create( $f, ' none' );
-				$num_results = $this->repository->getNumResults( $this->query->subcategory(), $this->query->allSubcategories(), $none_filter );
+				$num_results = $this->db->getNumResults( $this->query->subcategory(), $this->query->allSubcategories(), $none_filter );
 				if ( $num_results > 0 ) {
 					$additionalPossibleValues[] = new PossibleFilterValue( '_none', $num_results );
 				}
