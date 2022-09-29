@@ -38,7 +38,11 @@
 			},
 			"assert-output": {
 				"to-contain": [
+					"<div class=\"drilldown-results-output drilldown-results-output-unpaged\">",
 					"<a href=\"/index.php/Page2\" title=\"Page2\">Page2</a>"
+				],
+				"not-contain": [
+					"<div class=\"drilldown-results-output drilldown-results-output-paged\">"
 				]
 			}
 		},
@@ -53,7 +57,11 @@
 				}
 			},
 			"assert-output": {
+				"to-contain": [
+					"<div class=\"drilldown-results-output drilldown-results-output-paged\">"
+				],
 				"not-contain": [
+					"<div class=\"drilldown-results-output drilldown-results-output-unpaged\">",
 					"<a href=\"/index.php/Page2\" title=\"Page2\">Page2</a>"
 				]
 			}

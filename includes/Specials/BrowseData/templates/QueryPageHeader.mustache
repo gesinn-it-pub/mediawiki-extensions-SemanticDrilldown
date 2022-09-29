@@ -1,21 +1,33 @@
-{{{header}}}
-{{#categories}}{{>QueryPageHeader.Categories}}{{/categories}}
-<div class="panel panel-default">
-    <div class="panel-heading">&nbsp;</div>
-    <div class="panel-body">
-        {{#appliedFilters}}
-            <div id="drilldown-header">
-                <a href="{{categoryUrl}}" title="{{msg_sd_browsedata_resetfilters}}">{{category}}</a>
-                {{{remainingHtml}}}
-            </div>
-        {{/appliedFilters}}
-        {{#applicableFilters}}
-            <p>{{msg_sd_browsedata_docu}}</p>
-            <div class="drilldown-filters">
-                {{{remainingHtml}}}
-            </div>
-        {{/applicableFilters}}
-        <div class="drilldown-results-output drilldown-results-output-unpaged">
-            {{>Results}}
+{{#header}}
+    <div id="drilldown-header">
+        {{{header}}}
+    </div>
+{{/header}}
+
+{{#categories}}
+    {{>QueryPageHeader.Categories}}
+{{/categories}}
+
+<div id="drilldown-filters">
+    {{#appliedFilters}}
+        <div id="drilldown-applied-filters">
+            <a href="{{categoryUrl}}" title="{{msg_sd_browsedata_resetfilters}}">{{category}}</a>
+            {{{remainingHtml}}}
         </div>
-   {{! The 2 remaining divs are closed in QueryPageOutput }}
+    {{/appliedFilters}}
+    {{#applicableFilters}}
+        <p>{{msg_sd_browsedata_docu}}</p>
+        <div id="drilldown-applicable-filters">
+            {{{remainingHtml}}}
+        </div>
+    {{/applicableFilters}}
+</div>
+
+{{#results.0}}  {{! .0 is undocumented, but working in PHP: require first element of results being not empty }}
+    <div class="drilldown-results-output drilldown-results-output-unpaged">
+        {{>Results}}
+    </div>
+{{/results.0}}
+
+<div id="drilldown-top-paging">
+    {{!to be closed in QueryPageOutput}}
