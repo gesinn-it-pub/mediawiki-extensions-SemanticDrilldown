@@ -68,10 +68,26 @@
 		"HideFiltersWithoutValues": false,
 		"DisableFilterCollapsible": false,
 		"ResultFormatTypes": {
-			"list": "paged",
+			"broadtable": "paged",
 			"table": "paged",
-			"ol": "unpaged",
-			"json": "unsupported"
+			"count": "unsupported",
+			"debug": "unsupported",
+			"embedded": "paged",
+			"list": "paged",
+			"ol": "paged",
+			"ul": "paged",
+			"csv": "unsupported",
+			"json": "paged",
+			"category": "paged",
+			"rdf": "unsupported",
+			"dsv": "unsupported",
+			"feed": "unsupported",
+			"plainlist": "paged",
+			"templatefile": "unsupported",
+
+			"jqplotseries": "paged",
+			"maps": "unpaged"
+
 		},
 		"_prefix": "sdg"
 	},
