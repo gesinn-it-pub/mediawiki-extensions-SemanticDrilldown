@@ -12,7 +12,7 @@ class GetSemanticResults {
 		foreach ( $displayParametersList as $displayParameters ) {
 			$text = $semanticResultPrinter->getText( iterator_to_array( $displayParameters ) );
 			$results[] = [
-				'heading' => $displayParameters->caption,
+				'heading' => $displayParameters->caption(),
 				'body' => $out->parseAsInterface( $text ),
 			];
 			// Do we additionally need to add MetaData to $out here?

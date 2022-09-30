@@ -28,6 +28,8 @@ class ProcessTemplate {
 			'sd_browsedata_daterangeend',
 			'searchresultshead',
 			'sd_browsedata_novalues',
+			'sd_displayparameters_with_unknown_format',
+			'sd_displayparameters_with_unsupported_format'
 		];
 		foreach ( $messages as $message ) {
 			$msg[ "msg_$message" ] = wfMessage( $message )->text();

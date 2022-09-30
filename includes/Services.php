@@ -3,6 +3,7 @@
 namespace SD;
 
 use Closure;
+use MediaWiki\Config\ServiceOptions;
 use MediaWiki\MediaWikiServices;
 use PageProps;
 use SD\Parameters\LoadParameters;
@@ -78,8 +79,13 @@ class Services {
 	}
 
 	private function getNewQueryPage(): Closure {
+		// Using a prefix different from wg, the ServiceOptions approach does not work anymore;
+		// use the global variable instead:
+		global $sdgResultFormatTypes;
+
 		return fn( $context, $parameters, $query, $offset, $limit ) =>
 			new QueryPage(
+				$sdgResultFormatTypes,
 				$this->getRepository(), $this->getPageProps(), $this->getNewUrlService(),
 				$this->getGetPageFromTitleText(),
 				$context, $parameters, $query, $offset, $limit );
