@@ -108,18 +108,18 @@
 	};
 
 	function removePagingIfNotRequired() {
-		if ( $('.drilldown-results-output-paged').length === 0 ) {
-			const pagingSectionSelectors = $('#drilldown-top-paging, .mw-spcontent > p:last-of-type');
-			$(pagingSectionSelectors).remove();
+		if ( $( '.drilldown-results-output-paged' ).length === 0 ) {
+			const pagingSectionSelectors = $( '#drilldown-top-paging, .mw-spcontent > p:last-of-type' );
+			$( pagingSectionSelectors ).remove();
 		}
 	}
 
-	$(function () {
+	$( function () {
 		removePagingIfNotRequired();
 		$( '.semanticDrilldownCombobox' ).combobox();
 		$( '.drilldown-values-toggle' ).click( function () {
 			$( this ).toggleValuesDisplay();
 		} );
-	});
+	} );
 
 }( jQuery ) );
