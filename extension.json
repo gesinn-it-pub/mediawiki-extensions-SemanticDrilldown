@@ -80,7 +80,7 @@
 			"icalendar": "unsupported",
 			"jqplotchart": "unsupported",
 			"jqplotseries": "paged",
-			"json": "paged",
+			"json": "unsupported",
 			"list": "paged",
 			"maps": "unpaged",
 			"ol": "paged",
