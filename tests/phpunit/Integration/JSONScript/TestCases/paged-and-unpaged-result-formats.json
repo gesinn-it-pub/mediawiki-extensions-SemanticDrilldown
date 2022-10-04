@@ -4,17 +4,17 @@
 		{
 			"namespace": "NS_CATEGORY",
 			"page": "Category with only unpaged result formats",
-			"contents": "{{#drilldowninfo: display parameters=format=ol}}"
+			"contents": "{{#drilldowninfo: display parameters=format=ul}}"
 		},
 		{
 			"namespace": "NS_CATEGORY",
 			"page": "Category with only paged result formats",
-			"contents": "{{#drilldowninfo: display parameters=format=list}}"
+			"contents": "{{#drilldowninfo: display parameters=format=ol}}"
 		},
 		{
 			"namespace": "NS_CATEGORY",
 			"page": "Category with mixed types of result formats",
-			"contents": "{{#drilldowninfo: display parameters=format=ol|display parameters=format=list|display parameters=format=json|display parameters=format=unknown-format}}"
+			"contents": "{{#drilldowninfo: display parameters=format=ul|display parameters=format=ol|display parameters=format=some-unsupported-format|display parameters=format=some-unknown-format}}"
 		},
 		{
 			"page": "Page1",
@@ -113,7 +113,12 @@
 		}
 	],
 	"settings": {
-		"wgLang": "en"
+		"wgLang": "en",
+		"sdgResultFormatTypes": {
+			"ul": "unpaged",
+			"ol": "paged",
+			"some-unsupported-format": "unsupported"
+		}
 	},
 	"meta": {
 		"version": "2",

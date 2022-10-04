@@ -3,7 +3,6 @@
 namespace SD;
 
 use Closure;
-use MediaWiki\Config\ServiceOptions;
 use MediaWiki\MediaWikiServices;
 use PageProps;
 use SD\Parameters\LoadParameters;

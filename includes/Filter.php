@@ -31,8 +31,6 @@ class Filter {
 		$name, $property, $category, $requiredFilters, $int,
 		$propertyType = null, $timePeriod = null, $allowedValues = null
 	) {
-		$this->db = $db;
-
 		$this->name = $name;
 		$this->property = $property;
 		$this->category = $category;

@@ -20,10 +20,10 @@ class DbService {
 	/**
 	 * Execute a (readonly) query to the replica connection
 	 *
-	 * @param $sql
+	 * @param string $sql
 	 * @return bool|IResultWrapper
 	 */
-	public function query( $sql ) {
+	public function query( string $sql ) {
 		return $this->dbr->query( $sql );
 	}
 

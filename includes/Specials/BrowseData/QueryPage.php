@@ -3,7 +3,6 @@
 namespace SD\Specials\BrowseData;
 
 use Closure;
-use MediaWiki\Config\ServiceOptions;
 use PageProps;
 use RequestContext;
 use SD\DbService;
@@ -66,11 +65,11 @@ class QueryPage extends \QueryPage {
 		if ( $parameters->displayParametersList() ) {
 			foreach ( $parameters->displayParametersList() as $dps ) {
 				$format = $dps->format();
-				if ( !key_exists( $format, $resultFormatTypes ) ) {
+				if ( !array_key_exists( $format, $resultFormatTypes ) ) {
 					$this->displayParametersWithUnknownFormat[] = $dps;
-				} else if ( $resultFormatTypes[ $format ] === 'unpaged' ) {
+				} elseif ( $resultFormatTypes[ $format ] === 'unpaged' ) {
 					$this->unpagedDisplayParametersList[] = $dps;
-				} else if ( $resultFormatTypes[ $format ] === 'paged' ) {
+				} elseif ( $resultFormatTypes[ $format ] === 'paged' ) {
 					$this->pagedDisplayParametersList[] = $dps;
 				} else {
 					$this->displayParametersWithUnsupportedFormat[] = $dps;
@@ -102,9 +101,9 @@ class QueryPage extends \QueryPage {
 		$res = $this->db->query( $this->getSQL() );
 		return ( $this->processTemplate ) ( 'QueryPageHeader', [
 			'displayParametersWithUnknownFormat' =>
-				array_map( fn($x) => "$x", $this->displayParametersWithUnknownFormat ),
+				array_map( fn( $x ) => "$x", $this->displayParametersWithUnknownFormat ),
 			'displayParametersWithUnsupportedFormat' =>
-				array_map( fn($x) => "$x", $this->displayParametersWithUnsupportedFormat ),
+				array_map( fn( $x ) => "$x", $this->displayParametersWithUnsupportedFormat ),
 			'header' => ( $this->getPageContent )( $this->headerPage ),
 			'categories' => ( $this->getCategories )( $categories ),
 			'appliedFilters' => ( $this->getAppliedFilters )(),
