@@ -8,7 +8,6 @@ use RequestContext;
 use SD\DbService;
 use SD\Parameters\Parameters;
 use SD\Sql\SqlProvider;
-use SD\Utils;
 use SMWOutputs;
 use Title;
 
@@ -17,14 +16,13 @@ class QueryPage extends \QueryPage {
 	private DbService $db;
 	private UrlService $urlService;
 	private GetPageContent $getPageContent;
-	private GetCategories $getCategories;
 	private GetAppliedFilters $getAppliedFilters;
 	private GetApplicableFilters $getApplicableFilters;
 	private GetSemanticResults $getSemanticResults;
 
 	private ProcessTemplate $processTemplate;
 
-	private ?DrilldownQuery $query = null;
+	private DrilldownQuery $query;
 	private ?string $headerPage = null;
 	private ?string $footerPage = null;
 	private array $displayParametersWithUnknownFormat = [];
@@ -39,7 +37,7 @@ class QueryPage extends \QueryPage {
 		array $resultFormatTypes,
 		DbService $db, PageProps $pageProps, Closure $newUrlService,
 		Closure $getPageFromTitleText, RequestContext $context,
-		?Parameters $parameters, ?DrilldownQuery $query, ?int $offset, ?int $limit
+		Parameters $parameters, DrilldownQuery $query, int $offset, int $limit
 	) {
 		parent::__construct( 'BrowseData' );
 		$this->setContext( $context );
@@ -51,33 +49,30 @@ class QueryPage extends \QueryPage {
 		$this->getSemanticResults = new GetSemanticResults();
 
 		$urlService = $newUrlService( $request, $query );
-		$this->getCategories = new GetCategories( $db, $urlService, $query );
 
-		if ( $query ) {
-			$this->getAppliedFilters = new GetAppliedFilters( $pageProps, $urlService, $query );
-			$this->getApplicableFilters =
-				new GetApplicableFilters( $db, $urlService, $output, $request, $query );
+		$this->getAppliedFilters = new GetAppliedFilters( $pageProps, $urlService, $query );
+		$this->getApplicableFilters =
+			new GetApplicableFilters( $db, $urlService, $output, $request, $query );
 
-			$this->db = $db;
-			$this->urlService = $urlService;
-			$this->query = $query;
-			$this->offset = $offset;
-			$this->limit = $limit;
+		$this->db = $db;
+		$this->urlService = $urlService;
+		$this->query = $query;
+		$this->offset = $offset;
+		$this->limit = $limit;
 
-			$this->headerPage = $parameters->header();
-			$this->footerPage = $parameters->footer();
-			if ( $parameters->displayParametersList() ) {
-				foreach ( $parameters->displayParametersList() as $dps ) {
-					$format = $dps->format();
-					if ( !array_key_exists( $format, $resultFormatTypes ) ) {
-						$this->displayParametersWithUnknownFormat[] = $dps;
-					} elseif ( $resultFormatTypes[$format] === 'unpaged' ) {
-						$this->unpagedDisplayParametersList[] = $dps;
-					} elseif ( $resultFormatTypes[$format] === 'paged' ) {
-						$this->pagedDisplayParametersList[] = $dps;
-					} else {
-						$this->displayParametersWithUnsupportedFormat[] = $dps;
-					}
+		$this->headerPage = $parameters->header();
+		$this->footerPage = $parameters->footer();
+		if ( $parameters->displayParametersList() ) {
+			foreach ( $parameters->displayParametersList() as $dps ) {
+				$format = $dps->format();
+				if ( !array_key_exists( $format, $resultFormatTypes ) ) {
+					$this->displayParametersWithUnknownFormat[] = $dps;
+				} elseif ( $resultFormatTypes[$format] === 'unpaged' ) {
+					$this->unpagedDisplayParametersList[] = $dps;
+				} elseif ( $resultFormatTypes[$format] === 'paged' ) {
+					$this->pagedDisplayParametersList[] = $dps;
+				} else {
+					$this->displayParametersWithUnsupportedFormat[] = $dps;
 				}
 			}
 		}
@@ -98,18 +93,12 @@ class QueryPage extends \QueryPage {
 	}
 
 	protected function getPageHeader(): string {
-		$categories = Utils::getCategoriesForBrowsing();
-		if ( $this->query === null && empty( $categories ) ) {
-			return '';
-		}
-
 		$vm = [
 			'displayParametersWithUnknownFormat' =>
 				array_map( fn( $x ) => "$x", $this->displayParametersWithUnknownFormat ),
 			'displayParametersWithUnsupportedFormat' =>
 				array_map( fn( $x ) => "$x", $this->displayParametersWithUnsupportedFormat ),
 			'header' => ( $this->getPageContent )( $this->headerPage ),
-			'categories' => ( $this->getCategories )( $categories ),
 		];
 
 		if ( $this->query ) {

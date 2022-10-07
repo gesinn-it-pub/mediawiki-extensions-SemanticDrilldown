@@ -16,20 +16,24 @@ use IncludableSpecialPage;
 use MediaWiki\MediaWikiServices;
 use SD\AppliedFilter;
 use SD\BuildFilters;
+use SD\DbService;
 use SD\Parameters\LoadParameters;
 use SD\Utils;
 
 class SpecialBrowseData extends IncludableSpecialPage {
 
+	private GetCategories $getCategories;
 	private LoadParameters $loadParameters;
 	private Closure $newDrilldownQuery;
 	private Closure $newQueryPage;
 	private BuildFilters $buildFilters;
 
 	public function __construct(
-		LoadParameters $loadParameters, $newDrilldownQuery, $newQueryPage, BuildFilters $buildFilters
+		DbService $dbService, Closure $newUrlService, LoadParameters $loadParameters,
+		$newDrilldownQuery, $newQueryPage, BuildFilters $buildFilters
 	) {
 		parent::__construct( 'BrowseData' );
+		$this->getCategories = new GetCategories( $dbService, $newUrlService( $this->getRequest() ) );
 		$this->loadParameters = $loadParameters;
 		$this->newDrilldownQuery = $newDrilldownQuery;
 		$this->newQueryPage = $newQueryPage;
@@ -63,99 +67,92 @@ class SpecialBrowseData extends IncludableSpecialPage {
 			$queryparts = explode( '/', $query, 1 );
 			$category = isset( $queryparts[0] ) ? $queryparts[0] : '';
 		}
-		if ( !$category ) {
-			$category_title = wfMessage( 'browsedata' )->text();
-			// if no category was specified, go with the first
-			// category on the site, alphabetically
-			$categories = Utils::getCategoriesForBrowsing();
-			if ( count( $categories ) === 0 ) {
-				// There are apparently no top-level
-				// categories in this wiki - just exit now.
-				return;
-			}
-		} else {
+
+		$out->addHtml( ( new ProcessTemplate )( 'Categories', ( $this->getCategories )( $category ) ) );
+
+		if ( $category ) {
 			$parameters = ( $this->loadParameters )( $category );
 			$category_title = $parameters->title();
 			if ( $category_title === null ) {
 				$category_title = wfMessage( 'browsedata' )->text() . html_entity_decode( wfMessage( 'colon-separator' )->text() ) . str_replace( '_', ' ', $category );
 			}
-		}
-
-		if ( $category ) {
-			$subcategory = Utils::escapeString( $request->getVal( '_subcat' ) );
-			$filters = ( $this->buildFilters )( $category, $parameters->filters() );
-			$filter_used = array_fill( 0, count( $filters ), false );
-			$applied_filters = [];
-			$remaining_filters = [];
-			foreach ( $filters as $i => $filter ) {
-				$filter_name = str_replace( [ ' ', "'" ], [ '_', "\'" ], $filter->name() );
-				$search_terms = $request->getArray( '_search_' . $filter_name );
-				$lower_date = $request->getVal( '_lower_' . $filter_name );
-				$upper_date = $request->getVal( '_upper_' . $filter_name );
-				if ( $vals_array = $request->getArray( $filter_name ) ) {
-					foreach ( $vals_array as &$val ) {
-						$val = str_replace( '_', ' ', $val );
-					}
-					$applied_filters[] = AppliedFilter::create( $filter, $vals_array );
-					$filter_used[$i] = true;
-				} elseif ( $search_terms != null ) {
-					foreach ( $search_terms as &$search_term ) {
-						$search_term = str_replace( '_', ' ', $search_term );
-					}
-					$applied_filters[] = AppliedFilter::create( $filter, [], $search_terms );
-					$filter_used[$i] = true;
-				} elseif ( $lower_date != null || $upper_date != null ) {
-					$applied_filters[] =
-						AppliedFilter::create( $filter, [], null, $lower_date, $upper_date );
-					$filter_used[$i] = true;
-				}
-			}
-			// add every unused filter to the $remaining_filters array,
-			// unless it requires some other filter that hasn't been applied
-			foreach ( $filters as $i => $filter ) {
-				$matched_all_required_filters = true;
-				foreach ( $filter->requiredFilters() as $required_filter ) {
-					$found_match = false;
-					foreach ( $applied_filters as $af ) {
-						if ( $af->filter->name() == $required_filter ) {
-							$found_match = true;
-						}
-					}
-					if ( !$found_match ) {
-						$matched_all_required_filters = false;
-					}
-				}
-				if ( $matched_all_required_filters ) {
-					if ( !$filter_used[$i] ) {
-						$remaining_filters[] = $filter;
-					}
-				}
-			}
-
-			$out->addHTML( "\n			<div class=\"drilldown-results\">\n" );
 
 			[ $limit, $offset ] = $request->getLimitOffsetForUser(
 				$this->getUser(),
 				$sdgNumResultsPerPage,
 				'sdlimit'
 			);
-			$drilldownQuery = ( $this->newDrilldownQuery )(
-				$category, $subcategory, $filters, $applied_filters, $remaining_filters );
+
+			$out->addHTML( "<div class=\"drilldown-results\">\n" );
+
+			$drilldownQuery = $this->createDrilldownQuery( $category, $parameters );
+			$queryPage = ( $this->newQueryPage )( $this->getContext(), $parameters, $drilldownQuery, $offset, $limit );
+			$queryPage->execute( $query );
+
+			$out->addHTML( "</div> <!-- drilldown-results -->\n" );
 		} else {
-			$parameters = null;
-			$drilldownQuery = null;
-			$offset = null;
-			$limit = null;
+			$category_title = wfMessage( 'browsedata' )->text();
 		}
 
-		$queryPage = ( $this->newQueryPage )(
-			$this->getContext(), $parameters, $drilldownQuery, $offset, $limit );
-		$queryPage->execute( $query );
-
-		$out->addHTML( "\n			</div> <!-- drilldown-results -->\n" );
 		// This has to be set last, because otherwise the QueryPage
 		// code will overwrite it.
 		$out->setPageTitle( $category_title );
+	}
+
+	private function createDrilldownQuery( $category, $parameters ) {
+		$request = $this->getRequest();
+
+		$subcategory = Utils::escapeString( $request->getVal( '_subcat' ) );
+		$filters = ( $this->buildFilters )( $category, $parameters->filters() );
+		$filter_used = array_fill( 0, count( $filters ), false );
+		$applied_filters = [];
+		$remaining_filters = [];
+		foreach ( $filters as $i => $filter ) {
+			$filter_name = str_replace( [ ' ', "'" ], [ '_', "\'" ], $filter->name() );
+			$search_terms = $request->getArray( '_search_' . $filter_name );
+			$lower_date = $request->getVal( '_lower_' . $filter_name );
+			$upper_date = $request->getVal( '_upper_' . $filter_name );
+			if ( $vals_array = $request->getArray( $filter_name ) ) {
+				foreach ( $vals_array as &$val ) {
+					$val = str_replace( '_', ' ', $val );
+				}
+				$applied_filters[] = AppliedFilter::create( $filter, $vals_array );
+				$filter_used[$i] = true;
+			} elseif ( $search_terms != null ) {
+				foreach ( $search_terms as &$search_term ) {
+					$search_term = str_replace( '_', ' ', $search_term );
+				}
+				$applied_filters[] = AppliedFilter::create( $filter, [], $search_terms );
+				$filter_used[$i] = true;
+			} elseif ( $lower_date != null || $upper_date != null ) {
+				$applied_filters[] =
+					AppliedFilter::create( $filter, [], null, $lower_date, $upper_date );
+				$filter_used[$i] = true;
+			}
+		}
+		// add every unused filter to the $remaining_filters array,
+		// unless it requires some other filter that hasn't been applied
+		foreach ( $filters as $i => $filter ) {
+			$matched_all_required_filters = true;
+			foreach ( $filter->requiredFilters() as $required_filter ) {
+				$found_match = false;
+				foreach ( $applied_filters as $af ) {
+					if ( $af->filter->name() == $required_filter ) {
+						$found_match = true;
+					}
+				}
+				if ( !$found_match ) {
+					$matched_all_required_filters = false;
+				}
+			}
+			if ( $matched_all_required_filters ) {
+				if ( !$filter_used[$i] ) {
+					$remaining_filters[] = $filter;
+				}
+			}
+		}
+
+		return ( $this->newDrilldownQuery )( $category, $subcategory, $filters, $applied_filters, $remaining_filters );
 	}
 
 	/**
