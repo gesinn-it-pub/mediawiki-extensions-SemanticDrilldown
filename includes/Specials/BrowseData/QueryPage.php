@@ -24,9 +24,9 @@ class QueryPage extends \QueryPage {
 
 	private ProcessTemplate $processTemplate;
 
-	private DrilldownQuery $query;
-	private ?string $headerPage;
-	private ?string $footerPage;
+	private ?DrilldownQuery $query = null;
+	private ?string $headerPage = null;
+	private ?string $footerPage = null;
 	private array $displayParametersWithUnknownFormat = [];
 	private array $unpagedDisplayParametersList = [];
 	private array $pagedDisplayParametersList = [];
@@ -38,8 +38,8 @@ class QueryPage extends \QueryPage {
 	public function __construct(
 		array $resultFormatTypes,
 		DbService $db, PageProps $pageProps, Closure $newUrlService,
-		Closure $getPageFromTitleText, RequestContext $context, Parameters $parameters,
-		DrilldownQuery $query, int $offset, int $limit
+		Closure $getPageFromTitleText, RequestContext $context,
+		?Parameters $parameters, ?DrilldownQuery $query, ?int $offset, ?int $limit
 	) {
 		parent::__construct( 'BrowseData' );
 		$this->setContext( $context );
@@ -47,32 +47,37 @@ class QueryPage extends \QueryPage {
 		$request = $context->getRequest();
 		$output = $this->getOutput();
 
-		$urlService = $newUrlService( $request, $query );
 		$this->getPageContent = new GetPageContent( $getPageFromTitleText, $output );
-		$this->getCategories = new GetCategories( $db, $urlService, $query );
-		$this->getAppliedFilters = new GetAppliedFilters( $pageProps, $urlService, $query );
-		$this->getApplicableFilters = new GetApplicableFilters( $db, $urlService, $output, $request, $query );
 		$this->getSemanticResults = new GetSemanticResults();
 
-		$this->db = $db;
-		$this->urlService = $urlService;
-		$this->query = $query;
-		$this->headerPage = $parameters->header();
-		$this->footerPage = $parameters->footer();
-		$this->offset = $offset;
-		$this->limit = $limit;
+		$urlService = $newUrlService( $request, $query );
+		$this->getCategories = new GetCategories( $db, $urlService, $query );
 
-		if ( $parameters->displayParametersList() ) {
-			foreach ( $parameters->displayParametersList() as $dps ) {
-				$format = $dps->format();
-				if ( !array_key_exists( $format, $resultFormatTypes ) ) {
-					$this->displayParametersWithUnknownFormat[] = $dps;
-				} elseif ( $resultFormatTypes[ $format ] === 'unpaged' ) {
-					$this->unpagedDisplayParametersList[] = $dps;
-				} elseif ( $resultFormatTypes[ $format ] === 'paged' ) {
-					$this->pagedDisplayParametersList[] = $dps;
-				} else {
-					$this->displayParametersWithUnsupportedFormat[] = $dps;
+		if ( $query ) {
+			$this->getAppliedFilters = new GetAppliedFilters( $pageProps, $urlService, $query );
+			$this->getApplicableFilters =
+				new GetApplicableFilters( $db, $urlService, $output, $request, $query );
+
+			$this->db = $db;
+			$this->urlService = $urlService;
+			$this->query = $query;
+			$this->offset = $offset;
+			$this->limit = $limit;
+
+			$this->headerPage = $parameters->header();
+			$this->footerPage = $parameters->footer();
+			if ( $parameters->displayParametersList() ) {
+				foreach ( $parameters->displayParametersList() as $dps ) {
+					$format = $dps->format();
+					if ( !array_key_exists( $format, $resultFormatTypes ) ) {
+						$this->displayParametersWithUnknownFormat[] = $dps;
+					} elseif ( $resultFormatTypes[$format] === 'unpaged' ) {
+						$this->unpagedDisplayParametersList[] = $dps;
+					} elseif ( $resultFormatTypes[$format] === 'paged' ) {
+						$this->pagedDisplayParametersList[] = $dps;
+					} else {
+						$this->displayParametersWithUnsupportedFormat[] = $dps;
+					}
 				}
 			}
 		}
@@ -94,25 +99,36 @@ class QueryPage extends \QueryPage {
 
 	protected function getPageHeader(): string {
 		$categories = Utils::getCategoriesForBrowsing();
-		if ( $this->query->category() === null && empty( $categories ) ) {
+		if ( $this->query === null && empty( $categories ) ) {
 			return '';
 		}
 
-		$res = $this->db->query( $this->getSQL() );
-		return ( $this->processTemplate ) ( 'QueryPageHeader', [
+		$vm = [
 			'displayParametersWithUnknownFormat' =>
 				array_map( fn( $x ) => "$x", $this->displayParametersWithUnknownFormat ),
 			'displayParametersWithUnsupportedFormat' =>
 				array_map( fn( $x ) => "$x", $this->displayParametersWithUnsupportedFormat ),
 			'header' => ( $this->getPageContent )( $this->headerPage ),
 			'categories' => ( $this->getCategories )( $categories ),
-			'appliedFilters' => ( $this->getAppliedFilters )(),
-			'applicableFilters' => ( $this->getApplicableFilters )(),
-			'results' => ( $this->getSemanticResults )( $this->unpagedDisplayParametersList, $this->getOutput(), $res ),
-		] );
+		];
+
+		if ( $this->query ) {
+			$res = $this->db->query( $this->getSQL() );
+			$vm += [
+				'appliedFilters' => ( $this->getAppliedFilters )(),
+				'applicableFilters' => ( $this->getApplicableFilters )(),
+				'results' => ( $this->getSemanticResults )( $this->unpagedDisplayParametersList, $this->getOutput(), $res ),
+			];
+		}
+
+		return ( $this->processTemplate ) ( 'QueryPageHeader', $vm );
 	}
 
-	protected function getSQL(): string {
+	protected function getSQL(): ?string {
+		if ( !$this->query ) {
+			return 'select null as sortkey where 0 = 1';
+		}
+
 		// From the overridden method:
 		// "For back-compat, subclasses may return a raw SQL query here, as a string.
 		// This is strongly deprecated; getQueryInfo() should be overridden instead."

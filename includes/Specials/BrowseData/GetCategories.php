@@ -8,10 +8,10 @@ class GetCategories {
 
 	private DbService $db;
 	private UrlService $urlService;
-	private DrilldownQuery $query;
+	private ?DrilldownQuery $query;
 
 	public function __construct(
-		DbService $db, UrlService $urlService, DrilldownQuery $query
+		DbService $db, UrlService $urlService, ?DrilldownQuery $query
 	) {
 		$this->db = $db;
 		$this->urlService = $urlService;
@@ -25,9 +25,10 @@ class GetCategories {
 
 		$toCategoryViewModel = function ( $category ) {
 			$category_children = $this->db->getCategoryChildren( $category, false, 5 );
+			$queryCategory = $this->query ? $this->query->category() : '';
 			return [
 				'name' => $category . " (" . count( array_unique( $category_children ) ) . ")",
-				'isSelected' => str_replace( '_', ' ', $this->query->category() ) == $category,
+				'isSelected' => str_replace( '_', ' ', $queryCategory ) == $category,
 				'url' => $this->urlService->getUrl( $category )
 			];
 		};

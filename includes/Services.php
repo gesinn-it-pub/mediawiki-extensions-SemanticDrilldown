@@ -91,7 +91,7 @@ class Services {
 	}
 
 	private function getNewUrlService(): Closure {
-		return fn( WebRequest $request, DrilldownQuery $query ) =>
+		return fn( WebRequest $request, ?DrilldownQuery $query ) =>
 			new UrlService(
 				SpecialPage::getTitleFor( 'BrowseData' )->getLocalURL(), $request, $query );
 	}
