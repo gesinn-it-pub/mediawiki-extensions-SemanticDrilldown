@@ -45,7 +45,7 @@ class QueryPage extends \QueryPage {
 		$request = $context->getRequest();
 		$output = $this->getOutput();
 
-		$this->getPageContent = new GetPageContent( $getPageFromTitleText, $output );
+		$this->getPageContent = new GetPageContent( $getPageFromTitleText, $context );
 		$this->getSemanticResults = new GetSemanticResults();
 
 		$urlService = $newUrlService( $request, $query );
@@ -98,7 +98,7 @@ class QueryPage extends \QueryPage {
 				array_map( fn( $x ) => "$x", $this->displayParametersWithUnknownFormat ),
 			'displayParametersWithUnsupportedFormat' =>
 				array_map( fn( $x ) => "$x", $this->displayParametersWithUnsupportedFormat ),
-			'header' => ( $this->getPageContent )( $this->headerPage ),
+			'header' => $this->getPageContent( $this->getOutput(), $this->headerPage ),
 		];
 
 		if ( $this->query ) {
@@ -147,10 +147,19 @@ class QueryPage extends \QueryPage {
 	protected function outputResults( $out, $skin, $dbr, $res, $num, $offset ) {
 		$out->addHTML( ( $this->processTemplate )( 'QueryPageOutput', [
 			'results' => ( $this->getSemanticResults )( $this->pagedDisplayParametersList, $out, $res, $num ),
-			'footer' => ( $this->getPageContent )( $this->footerPage ),
+			'footer' => $this->getPageContent( $out, $this->footerPage ),
 		] ) );
 
 		SMWOutputs::commitToOutputPage( $out );
+	}
+
+	/**
+	 * Returns the HTML of $title and additionally adds the required modules to $out.
+	 */
+	private function getPageContent( $out, ?string $title ): string {
+		[ $html, $modules ] = ( $this->getPageContent )( $title );
+		$out->addModules( $modules );
+		return $html;
 	}
 
 	protected function openList( $offset ) {
