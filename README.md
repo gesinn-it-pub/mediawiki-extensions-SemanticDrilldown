@@ -1,6 +1,8 @@
 [![CI](https://github.com/gesinn-it-pub/mediawiki-extensions-SemanticDrilldown/actions/workflows/ci.yml/badge.svg)](https://github.com/gesinn-it-pub/mediawiki-extensions-SemanticDrilldown/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/gesinn-it-pub/mediawiki-extensions-SemanticDrilldown/branch/master/graph/badge.svg?token=G05P3R7Y2B)](https://codecov.io/gh/gesinn-it-pub/mediawiki-extensions-SemanticDrilldown)
 
+> This repo has been archrived. Use official repo: https://github.com/SemanticMediaWiki/SemanticDrilldown
+
 # About
 
 Semantic Drilldown is an extension to MediaWiki that works in
